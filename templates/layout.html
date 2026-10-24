@@ -4,13 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GTD - Personal Task & Info Manager</title>
-  <link rel="stylesheet" href="/static/style.css?v=3">
+  <link rel="stylesheet" href="/static/style.css?v=5">
   <script src="/static/htmx.min.js"></script>
-  <script src="/static/app.js?v=3"></script>
+  <script src="/static/app.js?v=5"></script>
 </head>
 <body hx-ext="morph">
 
-  <!-- Top App Bar & Quick Capture -->
+  <!-- Top App Bar (Quick Capture & Omnisearch) -->
   <header class="app-topbar">
     <div class="topbar-left">
       <button class="menu-toggle-btn" onclick="toggleSidebar()" title="メニュー切り替え" aria-label="Toggle menu">
@@ -25,25 +25,61 @@
       </div>
     </div>
 
-    <!-- Quick Capture Form (Centered) -->
-    <form class="quick-capture-form" hx-post="/items" hx-swap="none" onsubmit="setTimeout(() => { document.getElementById('quick-capture-input').value = ''; }, 30);">
-      <div class="quick-capture-wrapper">
-        <svg class="quick-capture-icon" viewBox="0 0 24 24">
-          <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-        </svg>
-        <input 
-          id="quick-capture-input" 
-          name="title" 
-          class="quick-capture-input" 
-          type="text" 
-          placeholder="タスク名 #タグ ^期日 (例: 資料作成 #30分 ^today|^金)" 
-          title="スマート記法対応: #タグ名 でContext付与、^today / ^tomorrow / ^金 / ^日付 で期日指定"
-          autocomplete="off" 
-          required
-        >
-        <span class="shortcut-badge" title="ショートカットキー">Alt+N</span>
+    <!-- Center Inputs (Quick Capture + Omnisearch) -->
+    <div class="topbar-inputs-container">
+      <!-- Quick Capture Form -->
+      <form class="quick-capture-form" hx-post="/items" hx-swap="none" onsubmit="setTimeout(() => { document.getElementById('quick-capture-input').value = ''; }, 30);">
+        <div class="quick-capture-wrapper">
+          <svg class="quick-capture-icon" viewBox="0 0 24 24">
+            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+          </svg>
+          <input 
+            id="quick-capture-input" 
+            name="title" 
+            class="quick-capture-input" 
+            type="text" 
+            placeholder="タスク名 #タグ ^期日 (例: 資料作成 #30分 ^today|^金)" 
+            title="スマート記法対応: #タグ名 でContext付与、^today / ^tomorrow / ^金 / ^日付 で期日指定"
+            autocomplete="off" 
+            required
+          >
+          <span class="shortcut-badge" title="ショートカットキー (Ctrl+I)">Ctrl+I</span>
+        </div>
+      </form>
+
+      <!-- Omnisearch Box -->
+      <div class="omnisearch-box">
+        <div class="omnisearch-wrapper">
+          <svg class="omnisearch-icon" viewBox="0 0 24 24">
+            <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+          </svg>
+          <input 
+            id="omnisearch-input" 
+            name="q" 
+            class="omnisearch-input" 
+            type="text" 
+            placeholder="タスク・添付を検索..." 
+            title="タスク・メモ・添付ファイルを全横断リアルタイム検索"
+            autocomplete="off" 
+            hx-get="/search"
+            hx-trigger="input changed delay:150ms, keyup[key=='Enter'], search"
+            hx-target="#omnisearch-dropdown"
+            hx-indicator="#omnisearch-spinner"
+            onfocus="openOmnisearchDropdown()"
+          >
+          <span class="omnisearch-spinner htmx-indicator" id="omnisearch-spinner"></span>
+          <button type="button" id="omnisearch-clear-btn" class="omnisearch-clear-btn hidden" onclick="clearOmnisearch()" title="クリア" aria-label="検索クリア">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+            </svg>
+          </button>
+          <span class="shortcut-badge" title="ショートカットキー (Ctrl+F)">Ctrl+F</span>
+        </div>
+
+        <!-- 検索結果ポップオーバー -->
+        <div id="omnisearch-dropdown" class="omnisearch-dropdown hidden" tabindex="-1"></div>
       </div>
-    </form>
+    </div>
 
     <div class="topbar-right"></div>
   </header>

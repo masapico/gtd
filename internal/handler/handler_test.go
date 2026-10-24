@@ -37,6 +37,7 @@ func setupTestServer(t *testing.T) (*Handler, http.Handler, func()) {
 		"../../templates/partials/item_detail.html",
 		"../../templates/partials/attachments.html",
 		"../../templates/partials/review_step.html",
+		"../../templates/partials/search_results.html",
 	)
 	if err != nil {
 		t.Fatalf("ParseFiles failed: %v", err)
@@ -48,6 +49,7 @@ func setupTestServer(t *testing.T) (*Handler, http.Handler, func()) {
 	mux.HandleFunc("GET /", h.ServeIndex)
 	mux.HandleFunc("GET /partials/sidebar", h.ServeSidebar)
 	mux.HandleFunc("GET /partials/items", h.ServeItemList)
+	mux.HandleFunc("GET /search", h.Search)
 	mux.HandleFunc("POST /items", h.CreateItem)
 	mux.HandleFunc("GET /items/{id}/detail", h.GetItemDetail)
 	mux.HandleFunc("PUT /items/{id}", h.UpdateItem)
@@ -1105,3 +1107,74 @@ func TestStartDateAndScheduledViewRendering(t *testing.T) {
 		t.Errorf("expected updated start_date 2026-11-01 in detail pane")
 	}
 }
+
+func TestSearchHandler(t *testing.T) {
+	_, mux, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// 1. タスク追加
+	form := url.Values{}
+	form.Set("title", "オムニサーチの設計書作成")
+	req := httptest.NewRequest("POST", "/items", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Create item failed: %d", rec.Code)
+	}
+
+	// 2. 添付ファイル追加
+	attForm := url.Values{}
+	attForm.Set("type", "path")
+	attForm.Set("target", "C:\\projects\\omnisearch_spec.pdf")
+	attForm.Set("label", "オムニ仕様PDF")
+	req = httptest.NewRequest("POST", "/items/1/attachments", strings.NewReader(attForm.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Add attachment failed: %d", rec.Code)
+	}
+
+	// 3. 空クエリでの検索リクエスト -> 空レスポンス
+	req = httptest.NewRequest("GET", "/search?q=", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Search empty failed: %d", rec.Code)
+	}
+	if rec.Body.String() != "" {
+		t.Errorf("expected empty body for empty query, got: %s", rec.Body.String())
+	}
+
+	// 4. クエリ "オムニ" で検索 -> タスクと添付ファイルの両方がヒット
+	req = httptest.NewRequest("GET", "/search?q=オムニ", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Search query failed: %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "オムニサーチの設計書作成") {
+		t.Errorf("expected task title in search results, got: %s", body)
+	}
+	if !strings.Contains(body, "オムニ仕様PDF") {
+		t.Errorf("expected attachment label in search results, got: %s", body)
+	}
+	if !strings.Contains(body, "hx-get=\"/items/1/detail\"") {
+		t.Errorf("expected hx-get detail link in search results, got: %s", body)
+	}
+
+	// 5. 該当なしのクエリ
+	req = httptest.NewRequest("GET", "/search?q=nonexistentkeyword12345", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Search nonexistent failed: %d", rec.Code)
+	}
+	noResultBody := rec.Body.String()
+	if !strings.Contains(noResultBody, "一致する結果は見つかりませんでした") {
+		t.Errorf("expected empty state message, got: %s", noResultBody)
+	}
+}
+

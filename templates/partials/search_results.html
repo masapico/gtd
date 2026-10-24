@@ -1,0 +1,131 @@
+<div class="search-results-panel">
+  {{if eq .TotalCount 0}}
+    <div class="search-empty-state">
+      <svg class="search-empty-icon" viewBox="0 0 24 24" width="36" height="36" fill="currentColor">
+        <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+      </svg>
+      <div class="search-empty-title">一致する結果は見つかりませんでした</div>
+      <div class="search-empty-desc">「{{.Query}}」に一致するタスクや添付ファイルはありません</div>
+    </div>
+  {{else}}
+    {{if gt (len .Items) 0}}
+      <div class="search-section-header">
+        <span class="search-section-title">タスク</span>
+        <span class="search-section-badge">{{len .Items}}件</span>
+      </div>
+      <div class="search-items-group" role="listbox">
+        {{range .Items}}
+          <div class="search-result-row search-item-row"
+               role="option"
+               tabindex="0"
+               data-item-id="{{.ID}}"
+               hx-get="/items/{{.ID}}/detail"
+               hx-target="#item-detail-pane"
+               hx-swap="innerHTML"
+               onclick="selectSearchResult('{{.ID}}')">
+            <span class="search-status-tag status-{{.Status}}">{{.StatusLabel}}</span>
+            <div class="search-row-content">
+              <div class="search-row-title">{{.Title}}</div>
+              <div class="search-row-meta">
+                {{if .ProjectName}}
+                  <span class="search-meta-badge proj-badge">
+                    <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                      <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+                    </svg>
+                    <span>{{.ProjectName}}</span>
+                  </span>
+                {{end}}
+                {{if .DueDate}}
+                  <span class="search-meta-badge due-badge {{.DueDateClass}}">
+                    <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                      <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11z"/>
+                    </svg>
+                    <span>{{.DueDisplay}}</span>
+                  </span>
+                {{end}}
+                {{if gt .AttachCount 0}}
+                  <span class="search-meta-badge attach-badge" title="添付あり ({{.AttachCount}}件)">
+                    <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                      <path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/>
+                    </svg>
+                    <span>{{.AttachCount}}</span>
+                  </span>
+                {{end}}
+              </div>
+            </div>
+          </div>
+        {{end}}
+      </div>
+    {{end}}
+
+    {{if gt (len .Attachments) 0}}
+      <div class="search-section-header">
+        <span class="search-section-title">添付ファイル・リンク</span>
+        <span class="search-section-badge">{{len .Attachments}}件</span>
+      </div>
+      <div class="search-items-group" role="listbox">
+        {{range .Attachments}}
+          <div class="search-result-row search-attach-row"
+               role="option"
+               tabindex="0"
+               data-item-id="{{.ItemID}}"
+               hx-get="/items/{{.ItemID}}/detail"
+               hx-target="#item-detail-pane"
+               hx-swap="innerHTML"
+               onclick="selectSearchResult('{{.ItemID}}')">
+            <span class="search-attach-icon {{.Type}}" title="{{.Type}}">
+              {{if eq .Type "path"}}
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                  <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+                </svg>
+              {{else if eq .Type "url"}}
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                  <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/>
+                </svg>
+              {{else}}
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                  <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                </svg>
+              {{end}}
+            </span>
+            <div class="search-row-content">
+              <div class="search-row-title">{{.CleanTargetName}}</div>
+              <div class="search-row-meta">
+                <span class="search-attach-parent">
+                  タスク: {{.ItemTitle}}
+                </span>
+                <span class="search-status-tag-micro status-{{.ItemStatus}}">{{.ItemStatus}}</span>
+              </div>
+            </div>
+            {{if eq .Type "path"}}
+              <button type="button" 
+                      class="search-open-btn"
+                      hx-post="/attachments/{{.ID}}/open"
+                      hx-swap="none"
+                      onclick="event.stopPropagation();"
+                      title="OSで直接開く">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                  <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
+                </svg>
+                <span>開く</span>
+              </button>
+            {{end}}
+          </div>
+        {{end}}
+      </div>
+    {{end}}
+
+    <div class="search-dropdown-footer">
+      <div class="search-keys-guide">
+        <span class="key-badge">↑</span>
+        <span class="key-badge">↓</span>
+        <span class="guide-text">選択</span>
+        <span class="key-badge">Enter</span>
+        <span class="guide-text">表示</span>
+        <span class="key-badge">Esc</span>
+        <span class="guide-text">閉じる</span>
+      </div>
+    </div>
+  {{end}}
+</div>
+

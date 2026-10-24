@@ -898,3 +898,125 @@ func MarkItemReviewed(db *sql.DB, id int64) error {
 	return err
 }
 
+// SearchOmni はタイトル、メモ、プロジェクト名、添付ファイルから横断検索を実行します
+func SearchOmni(database *sql.DB, query string, itemLimit, attachLimit int) (*model.OmniSearchResult, error) {
+	query = strings.TrimSpace(query)
+	result := &model.OmniSearchResult{
+		Query: query,
+	}
+	if query == "" {
+		return result, nil
+	}
+
+	searchTerm := "%" + query + "%"
+	prefixTerm := query + "%"
+
+	if itemLimit <= 0 {
+		itemLimit = 20
+	}
+	if attachLimit <= 0 {
+		attachLimit = 10
+	}
+
+	// 1. Items 検索（タイトル、本文、プロジェクト名を検索）
+	// タイトル前方一致 > タイトル部分一致 > 未完了優先 > 作成日降順
+	itemQuery := `
+		SELECT 
+			i.id, i.project_id, COALESCE(p.name, '') AS project_name, 
+			i.title, COALESCE(i.body, '') AS body, i.status, 
+			i.start_date, i.due_date, i.recurrence, i.last_reviewed_at, i.created_at, i.updated_at,
+			(SELECT COUNT(*) FROM attachments a WHERE a.item_id = i.id) AS attach_count
+		FROM items i
+		LEFT JOIN projects p ON i.project_id = p.id
+		WHERE i.title LIKE ? OR i.body LIKE ? OR p.name LIKE ?
+		ORDER BY 
+			CASE WHEN i.title LIKE ? THEN 0 ELSE 1 END,
+			CASE WHEN i.title LIKE ? THEN 0 ELSE 1 END,
+			CASE WHEN i.status != 'done' THEN 0 ELSE 1 END,
+			i.created_at DESC
+		LIMIT ?
+	`
+	rows, err := database.Query(itemQuery, searchTerm, searchTerm, searchTerm, prefixTerm, searchTerm, itemLimit)
+	if err != nil {
+		return nil, fmt.Errorf("item search query failed: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var it model.Item
+		var pID sql.NullInt64
+		var sDate sql.NullString
+		var dDate sql.NullString
+		var lRev sql.NullTime
+
+		if err := rows.Scan(
+			&it.ID, &pID, &it.ProjectName,
+			&it.Title, &it.Body, &it.Status,
+			&sDate, &dDate, &it.Recurrence, &lRev,
+			&it.CreatedAt, &it.UpdatedAt,
+			&it.AttachCount,
+		); err != nil {
+			return nil, fmt.Errorf("item search scan failed: %w", err)
+		}
+
+		if pID.Valid {
+			it.ProjectID = &pID.Int64
+		}
+		if sDate.Valid && sDate.String != "" {
+			cleanDate := strings.Split(sDate.String, "T")[0]
+			it.StartDate = &cleanDate
+		}
+		if dDate.Valid && dDate.String != "" {
+			cleanDate := strings.Split(dDate.String, "T")[0]
+			it.DueDate = &cleanDate
+		}
+		if lRev.Valid {
+			it.LastReviewedAt = &lRev.Time
+		}
+
+		result.Items = append(result.Items, it)
+	}
+
+	// 2. Attachments 検索（ラベル、パス/URL/ファイル名を検索）
+	attachQuery := `
+		SELECT 
+			a.id, a.item_id, COALESCE(a.label, ''), a.target, a.type, 
+			i.title AS item_title, i.status AS item_status
+		FROM attachments a
+		JOIN items i ON a.item_id = i.id
+		WHERE a.label LIKE ? OR a.target LIKE ?
+		ORDER BY 
+			CASE WHEN i.status != 'done' THEN 0 ELSE 1 END,
+			a.created_at DESC
+		LIMIT ?
+	`
+	attRows, err := database.Query(attachQuery, searchTerm, searchTerm, attachLimit)
+	if err != nil {
+		return nil, fmt.Errorf("attachment search query failed: %w", err)
+	}
+	defer attRows.Close()
+
+	for attRows.Next() {
+		var a model.OmniAttachmentResult
+		if err := attRows.Scan(
+			&a.ID, &a.ItemID, &a.Label, &a.Target, &a.Type,
+			&a.ItemTitle, &a.ItemStatus,
+		); err != nil {
+			return nil, fmt.Errorf("attachment search scan failed: %w", err)
+		}
+
+		lowerQuery := strings.ToLower(query)
+		if strings.Contains(strings.ToLower(a.Label), lowerQuery) {
+			a.MatchField = "label"
+		} else {
+			a.MatchField = "target"
+		}
+
+		result.Attachments = append(result.Attachments, a)
+	}
+
+	result.TotalCount = len(result.Items) + len(result.Attachments)
+	return result, nil
+}
+
+

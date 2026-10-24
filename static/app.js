@@ -91,8 +91,34 @@ document.addEventListener('paste', async (e) => {
 
 // 2. キーボードショートカット
 document.addEventListener('keydown', (e) => {
-  // Esc: プロジェクトインライン編集を閉じる / 詳細インスペクタを閉じる / サイドバーを閉じる
+  // Ctrl + I / Cmd + I: Quick Capture 入力欄へフォーカス
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'i' || e.key === 'I')) {
+    e.preventDefault();
+    focusQuickCapture();
+    return;
+  }
+
+  // Ctrl + F / Cmd + F / Ctrl + K / Cmd + K: Omnisearch 検索窓へフォーカス
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F' || e.key === 'k' || e.key === 'K')) {
+    e.preventDefault();
+    focusOmnisearch();
+    return;
+  }
+
+  const dropdown = document.getElementById('omnisearch-dropdown');
+  const isDropdownOpen = dropdown && !dropdown.classList.contains('hidden') && dropdown.innerHTML.trim() !== '';
+  const searchInput = document.getElementById('omnisearch-input');
+  const isSearchFocused = document.activeElement === searchInput;
+
+  // Esc: オムニサーチドロップダウンを閉じる / プロジェクトインライン編集を閉じる / 詳細インスペクタを閉じる / サイドバーを閉じる
   if (e.key === 'Escape') {
+    if (isDropdownOpen) {
+      e.preventDefault();
+      closeOmnisearchDropdown();
+      if (searchInput) searchInput.blur();
+      return;
+    }
+
     const projectEditForm = document.getElementById('project-title-edit');
     if (projectEditForm && projectEditForm.style.display !== 'none') {
       e.preventDefault();
@@ -116,16 +142,46 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
+  // ドロップダウンが開いている場合の矢印キー・Enterナビゲーション
+  if (isDropdownOpen && (isSearchFocused || dropdown.contains(document.activeElement))) {
+    const rows = Array.from(dropdown.querySelectorAll('.search-result-row'));
+    if (rows.length > 0) {
+      const activeIdx = rows.findIndex(r => r.classList.contains('active'));
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        let nextIdx = activeIdx + 1;
+        if (nextIdx >= rows.length) nextIdx = 0;
+        rows.forEach(r => r.classList.remove('active'));
+        rows[nextIdx].classList.add('active');
+        rows[nextIdx].scrollIntoView({ block: 'nearest' });
+        return;
+      }
+
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        let prevIdx = activeIdx - 1;
+        if (prevIdx < 0) prevIdx = rows.length - 1;
+        rows.forEach(r => r.classList.remove('active'));
+        rows[prevIdx].classList.add('active');
+        rows[prevIdx].scrollIntoView({ block: 'nearest' });
+        return;
+      }
+
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const targetRow = activeIdx >= 0 ? rows[activeIdx] : rows[0];
+        if (targetRow) {
+          targetRow.click();
+        }
+        return;
+      }
+    }
+  }
+
   // フォーカスが入力フォーム中ならショートカットを発火しない
   const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
   const isInputActive = activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select';
-
-  // Alt + N: Quick Capture 入力欄へフォーカス
-  if (e.altKey && (e.key === 'n' || e.key === 'N')) {
-    e.preventDefault();
-    focusQuickCapture();
-    return;
-  }
 
   // 入力フォーム外での '/' キー: Quick Capture 入力欄へフォーカス
   if (!isInputActive && e.key === '/') {
@@ -142,6 +198,127 @@ function focusQuickCapture() {
     input.select();
   }
 }
+
+function focusOmnisearch() {
+  const input = document.getElementById('omnisearch-input');
+  if (input) {
+    input.focus();
+    input.select();
+    openOmnisearchDropdown();
+  }
+}
+
+// オムニサーチの開閉・クリア・選択制御
+function openOmnisearchDropdown() {
+  const dropdown = document.getElementById('omnisearch-dropdown');
+  const input = document.getElementById('omnisearch-input');
+  if (dropdown && input && input.value.trim().length > 0 && dropdown.innerHTML.trim().length > 0) {
+    dropdown.classList.remove('hidden');
+  }
+}
+
+function closeOmnisearchDropdown() {
+  const dropdown = document.getElementById('omnisearch-dropdown');
+  if (dropdown) {
+    dropdown.classList.add('hidden');
+    dropdown.querySelectorAll('.search-result-row.active').forEach(r => r.classList.remove('active'));
+  }
+}
+
+function clearOmnisearch() {
+  const input = document.getElementById('omnisearch-input');
+  const clearBtn = document.getElementById('omnisearch-clear-btn');
+  const dropdown = document.getElementById('omnisearch-dropdown');
+  if (input) {
+    input.value = '';
+    input.focus();
+  }
+  if (clearBtn) {
+    clearBtn.classList.add('hidden');
+  }
+  if (dropdown) {
+    dropdown.innerHTML = '';
+    dropdown.classList.add('hidden');
+  }
+}
+
+function selectSearchResult(itemId) {
+  openDetailPane(itemId);
+  closeOmnisearchDropdown();
+  
+  // 中央リストの選択状態を更新
+  document.querySelectorAll('.item-card').forEach(el => {
+    if (el.getAttribute('onclick')?.includes(itemId)) {
+      el.classList.add('selected');
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } else {
+      el.classList.remove('selected');
+    }
+  });
+}
+
+// 検索入力時のクリアボタン表示制御
+document.addEventListener('input', (e) => {
+  if (e.target && e.target.id === 'omnisearch-input') {
+    const clearBtn = document.getElementById('omnisearch-clear-btn');
+    const val = e.target.value.trim();
+    if (clearBtn) {
+      if (val.length > 0) {
+        clearBtn.classList.remove('hidden');
+      } else {
+        clearBtn.classList.add('hidden');
+        closeOmnisearchDropdown();
+      }
+    }
+  }
+});
+
+// 外側クリックでドロップダウンを閉じる
+document.addEventListener('click', (e) => {
+  const box = document.querySelector('.omnisearch-box');
+  if (box && !box.contains(e.target)) {
+    closeOmnisearchDropdown();
+  }
+});
+
+// HTMX のスワップ後にドロップダウンの表示を制御 (HTMX 4: after:swap, HTMX 1/2: afterSwap)
+function handleOmnisearchSwap(e) {
+  const target = e.detail?.target || e.target;
+  if (target && target.id === 'omnisearch-dropdown') {
+    const input = document.getElementById('omnisearch-input');
+    const val = input ? input.value.trim() : '';
+    const hasContent = target.innerHTML.trim().length > 0;
+    if (val.length > 0 && hasContent) {
+      target.classList.remove('hidden');
+    } else {
+      target.classList.add('hidden');
+    }
+  }
+}
+document.addEventListener('htmx:after:swap', handleOmnisearchSwap);
+document.addEventListener('htmx:afterSwap', handleOmnisearchSwap);
+document.addEventListener('htmx:after:settle', handleOmnisearchSwap);
+document.addEventListener('htmx:afterSettle', handleOmnisearchSwap);
+document.addEventListener('htmx:after:request', handleOmnisearchSwap);
+document.addEventListener('htmx:afterRequest', handleOmnisearchSwap);
+
+// DOM 変更の自動検知（HTMX のバージョン差異に依存しない安全設計）
+document.addEventListener('DOMContentLoaded', () => {
+  const dropdown = document.getElementById('omnisearch-dropdown');
+  if (dropdown) {
+    const observer = new MutationObserver(() => {
+      const input = document.getElementById('omnisearch-input');
+      const val = input ? input.value.trim() : '';
+      if (val.length > 0 && dropdown.innerHTML.trim().length > 0) {
+        dropdown.classList.remove('hidden');
+      } else if (dropdown.innerHTML.trim().length === 0) {
+        dropdown.classList.add('hidden');
+      }
+    });
+    observer.observe(dropdown, { childList: true, subtree: true });
+  }
+});
+
 
 // 3. 詳細ペインの開閉制御
 function openDetailPane(itemId) {

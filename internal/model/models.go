@@ -323,3 +323,36 @@ type ItemFilter struct {
 	Search    string
 }
 
+// OmniSearchResult はオムニサーチ全体の検索結果を表します
+type OmniSearchResult struct {
+	Query       string                 `json:"query"`
+	Items       []Item                 `json:"items"`
+	Attachments []OmniAttachmentResult `json:"attachments"`
+	TotalCount  int                    `json:"total_count"`
+}
+
+// OmniAttachmentResult は添付ファイル検索でヒットした項目を表します
+type OmniAttachmentResult struct {
+	ID         int64  `json:"id"`
+	ItemID     int64  `json:"item_id"`
+	ItemTitle  string `json:"item_title"`
+	ItemStatus string `json:"item_status"`
+	Label      string `json:"label"`
+	Target     string `json:"target"`
+	Type       string `json:"type"` // 'url', 'path', 'image'
+	MatchField string `json:"match_field"` // 'label' or 'target'
+}
+
+// CleanTargetName はパスやURLの短い表示名を返します
+func (a OmniAttachmentResult) CleanTargetName() string {
+	if a.Label != "" {
+		return a.Label
+	}
+	parts := strings.Split(strings.ReplaceAll(a.Target, "\\", "/"), "/")
+	if len(parts) > 0 {
+		return parts[len(parts)-1]
+	}
+	return a.Target
+}
+
+

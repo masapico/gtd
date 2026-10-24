@@ -321,3 +321,133 @@ func TestStartDateAndScheduledView(t *testing.T) {
 	}
 }
 
+func TestSearchOmni(t *testing.T) {
+	dbPath := setupTestDB(t)
+	db, err := InitDB(dbPath)
+	if err != nil {
+		t.Fatalf("InitDB failed: %v", err)
+	}
+	defer db.Close()
+
+	// 1. プロジェクト作成
+	pID, err := CreateProject(db, &model.Project{
+		Name:        "社内システム刷新プロジェクト",
+		Description: "基幹システムの全面リプレイス",
+		Status:      "active",
+	})
+	if err != nil {
+		t.Fatalf("CreateProject failed: %v", err)
+	}
+
+	// 2. アイテム作成
+	item1 := &model.Item{
+		ProjectID: &pID,
+		Title:     "要件定義書の初稿作成",
+		Body:      "非機能要件とセキュリティ要件を詳細に記述する",
+		Status:    "next",
+	}
+	id1, err := CreateItem(db, item1)
+	if err != nil {
+		t.Fatalf("CreateItem failed: %v", err)
+	}
+
+	item2 := &model.Item{
+		Title:  "定例会議の議事録共有",
+		Body:   "要件定義書レビューの日程調整についても触れる",
+		Status: "done",
+	}
+	id2, err := CreateItem(db, item2)
+	if err != nil {
+		t.Fatalf("CreateItem failed: %v", err)
+	}
+
+	// 3. 添付ファイル作成
+	att1 := &model.Attachment{
+		ItemID: id1,
+		Label:  "新仕様書ドラフト.xlsx",
+		Target: `C:\docs\spec_v1.xlsx`,
+		Type:   "path",
+	}
+	if _, err := CreateAttachment(db, att1); err != nil {
+		t.Fatalf("CreateAttachment failed: %v", err)
+	}
+
+	att2 := &model.Attachment{
+		ItemID: id2,
+		Label:  "会議録リンク",
+		Target: "https://wiki.example.com/minutes/20261024",
+		Type:   "url",
+	}
+	if _, err := CreateAttachment(db, att2); err != nil {
+		t.Fatalf("CreateAttachment failed: %v", err)
+	}
+
+	// 4. タイトル検索テスト（"要件定義書"）
+	res1, err := SearchOmni(db, "要件定義書", 10, 10)
+	if err != nil {
+		t.Fatalf("SearchOmni failed: %v", err)
+	}
+	if len(res1.Items) != 2 {
+		t.Fatalf("expected 2 items for '要件定義書', got %d", len(res1.Items))
+	}
+	// 未完了(status=next)が先頭に来ていること
+	if res1.Items[0].ID != id1 {
+		t.Errorf("expected active item id1 first, got %d", res1.Items[0].ID)
+	}
+
+	// 5. 本文検索テスト（"セキュリティ要件"）
+	res2, err := SearchOmni(db, "セキュリティ要件", 10, 10)
+	if err != nil {
+		t.Fatalf("SearchOmni failed: %v", err)
+	}
+	if len(res2.Items) != 1 || res2.Items[0].ID != id1 {
+		t.Errorf("expected 1 item with id1 for body search, got %d", len(res2.Items))
+	}
+
+	// 6. プロジェクト名検索テスト（"社内システム"）
+	res3, err := SearchOmni(db, "社内システム", 10, 10)
+	if err != nil {
+		t.Fatalf("SearchOmni failed: %v", err)
+	}
+	if len(res3.Items) != 1 || res3.Items[0].ID != id1 {
+		t.Errorf("expected 1 item matching project name, got %d", len(res3.Items))
+	}
+
+	// 7. 添付ファイルラベル検索テスト（"新仕様書ドラフト"）
+	res4, err := SearchOmni(db, "新仕様書ドラフト", 10, 10)
+	if err != nil {
+		t.Fatalf("SearchOmni failed: %v", err)
+	}
+	if len(res4.Attachments) != 1 {
+		t.Fatalf("expected 1 attachment, got %d", len(res4.Attachments))
+	}
+	if res4.Attachments[0].ItemID != id1 {
+		t.Errorf("expected attachment itemID %d, got %d", id1, res4.Attachments[0].ItemID)
+	}
+	if res4.Attachments[0].MatchField != "label" {
+		t.Errorf("expected match_field 'label', got %s", res4.Attachments[0].MatchField)
+	}
+
+	// 8. 添付ファイルTarget検索テスト（"wiki.example.com"）
+	res5, err := SearchOmni(db, "wiki.example.com", 10, 10)
+	if err != nil {
+		t.Fatalf("SearchOmni failed: %v", err)
+	}
+	if len(res5.Attachments) != 1 {
+		t.Fatalf("expected 1 attachment, got %d", len(res5.Attachments))
+	}
+	if res5.Attachments[0].ItemID != id2 {
+		t.Errorf("expected attachment itemID %d, got %d", id2, res5.Attachments[0].ItemID)
+	}
+
+	// 9. 空文字検索テスト
+	resEmpty, err := SearchOmni(db, "   ", 10, 10)
+	if err != nil {
+		t.Fatalf("SearchOmni empty failed: %v", err)
+	}
+	if resEmpty.TotalCount != 0 {
+		t.Errorf("expected 0 total count for empty query, got %d", resEmpty.TotalCount)
+	}
+}
+
+

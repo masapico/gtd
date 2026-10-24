@@ -66,6 +66,7 @@ func main() {
 	mux.HandleFunc("GET /", h.ServeIndex)
 	mux.HandleFunc("GET /partials/sidebar", h.ServeSidebar)
 	mux.HandleFunc("GET /partials/items", h.ServeItemList)
+	mux.HandleFunc("GET /search", h.Search)
 
 	// Items
 	mux.HandleFunc("POST /items", h.CreateItem)
