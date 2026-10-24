@@ -268,12 +268,15 @@ function selectSearchResult(itemId) {
   closeOmnisearchDropdown();
   
   // 中央リストの選択状態を更新
+  let found = false;
   document.querySelectorAll('.item-card').forEach(el => {
     if (el.getAttribute('onclick')?.includes(itemId)) {
-      el.classList.add('selected');
+      el.classList.add('selected', 'pulse-highlight');
       el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      setTimeout(() => el.classList.remove('pulse-highlight'), 1500);
+      found = true;
     } else {
-      el.classList.remove('selected');
+      el.classList.remove('selected', 'pulse-highlight');
     }
   });
 }

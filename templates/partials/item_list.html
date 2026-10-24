@@ -1,5 +1,5 @@
 <div id="items-view-container" class="items-view-container"
-     hx-get="/partials/items?view={{.View}}{{if .CurrentProject}}&project_id={{.CurrentProject.ID}}{{end}}{{if .CurrentContext}}&context_id={{.CurrentContext.ID}}{{end}}{{if .ProjectStatus}}&project_status={{.ProjectStatus}}{{end}}{{if .Search}}&search={{.Search}}{{end}}"
+     hx-get="/partials/items?view={{.View}}{{if .CurrentProject}}&project_id={{.CurrentProject.ID}}{{end}}{{if .CurrentContext}}&context_id={{.CurrentContext.ID}}{{end}}{{if .ProjectStatus}}&project_status={{.ProjectStatus}}{{end}}{{if .ItemStatusFilter}}&item_status={{.ItemStatusFilter}}{{end}}{{if .Search}}&search={{.Search}}{{end}}"
      hx-trigger="itemChanged from:document, listRefresh from:document, contextChanged from:document, projectChanged from:document"
      hx-swap="outerHTML">
 <div class="content-header">
@@ -197,19 +197,58 @@
     </form>
   {{end}}
 
-  <!-- Project ビューの場合のインラインタスク追加フォーム -->
+  <!-- Project ビューの場合の進捗ダッシュボード & ステータス Filter Chips -->
   {{if and (eq .View "project") .CurrentProject}}
-    {{if ne .CurrentProject.Status "done"}}
-      <form class="mini-add-form" style="margin-top: 12px; max-width: 500px;" 
-            hx-post="/items" 
-            hx-swap="none" 
-            onsubmit="setTimeout(() => { this.reset(); }, 30)">
-        <input type="hidden" name="project_id" value="{{.CurrentProject.ID}}">
-        <input type="hidden" name="status" value="next">
-        <input class="form-input" style="padding: 6px 12px;" name="title" placeholder="+ このプロジェクトのNext Actionを追加..." required autocomplete="off">
-        <button class="btn-small" style="padding: 6px 14px; white-space: nowrap;" type="submit">追加</button>
-      </form>
-    {{end}}
+    <div class="project-dashboard-bar">
+      <!-- 進捗バー -->
+      <div class="project-progress-wrap">
+        <div class="project-progress-label">
+          <span>進捗: <strong>{{.ProjectStats.DoneCount}}</strong> / {{.ProjectStats.TotalCount}} 件完了</span>
+          <span class="project-progress-pct">{{.ProjectStats.Progress}}%</span>
+        </div>
+        <div class="project-progress-track">
+          <div class="project-progress-fill" style="width: {{.ProjectStats.Progress}}%;"></div>
+        </div>
+      </div>
+
+      {{if .ProjectStats.IsStalled}}
+        <div class="project-stalled-banner" title="GTD原則: プロジェクトには常に1つ以上のNext Action（次の一手）が必要です">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+            <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+          </svg>
+          <span>Next Action が未設定です（停滞中）</span>
+        </div>
+      {{end}}
+    </div>
+
+    <!-- ステータス Filter Chips -->
+    <div class="filter-chips-bar" style="margin-top: 10px;">
+      <span class="chip {{if or (eq .ItemStatusFilter "") (eq .ItemStatusFilter "all")}}active{{end}}" 
+            hx-get="/partials/items?project_id={{.CurrentProject.ID}}&item_status=all" 
+            hx-target="#main-content-pane">
+        すべて ({{.ProjectStats.TotalCount}})
+      </span>
+      <span class="chip chip-next {{if eq .ItemStatusFilter "next"}}active{{end}}" 
+            hx-get="/partials/items?project_id={{.CurrentProject.ID}}&item_status=next" 
+            hx-target="#main-content-pane">
+        Next ({{.ProjectStats.NextCount}})
+      </span>
+      <span class="chip chip-waiting {{if eq .ItemStatusFilter "waiting"}}active{{end}}" 
+            hx-get="/partials/items?project_id={{.CurrentProject.ID}}&item_status=waiting" 
+            hx-target="#main-content-pane">
+        Waiting ({{.ProjectStats.WaitingCount}})
+      </span>
+      <span class="chip chip-someday {{if eq .ItemStatusFilter "someday"}}active{{end}}" 
+            hx-get="/partials/items?project_id={{.CurrentProject.ID}}&item_status=someday" 
+            hx-target="#main-content-pane">
+        Someday ({{.ProjectStats.SomedayCount}})
+      </span>
+      <span class="chip chip-done {{if eq .ItemStatusFilter "done"}}active{{end}}" 
+            hx-get="/partials/items?project_id={{.CurrentProject.ID}}&item_status=done" 
+            hx-target="#main-content-pane">
+        Done ({{.ProjectStats.DoneCount}})
+      </span>
+    </div>
   {{end}}
 </div>
 
@@ -478,6 +517,9 @@
                   <div class="item-main-info">
                     <div class="item-title">{{.Title}}</div>
                     <div class="item-metadata">
+                      <!-- ステータスバッジ -->
+                      <span class="meta-tag tag-status {{.StatusBadgeClass}}">{{.StatusLabel}}</span>
+
                       <!-- 繰り返し設定バッジ -->
                       {{if ne .Recurrence "none"}}
                         <span class="meta-tag tag-repeat" title="繰り返しタスク: {{.RecurrenceLabel}}">
@@ -538,11 +580,262 @@
                       {{end}}
                     </div>
                   </div>
+
+                  <!-- クイックトグルボタン (Next ⇄ Waiting) -->
+                  {{if or (eq .Status "next") (eq .Status "waiting")}}
+                    <button type="button" 
+                            class="item-quick-toggle-btn" 
+                            hx-patch="/items/{{.ID}}/status" 
+                            hx-vals='{"status": "{{.NextQuickToggleStatus}}"}' 
+                            hx-swap="none" 
+                            onclick="event.stopPropagation()" 
+                            title="{{.QuickToggleLabel}}">
+                      {{if eq .Status "next"}}
+                        <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                          <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+                        </svg>
+                        <span>Waitingへ</span>
+                      {{else}}
+                        <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+                        </svg>
+                        <span>Nextへ</span>
+                      {{end}}
+                    </button>
+                  {{end}}
                 </div>
               {{end}}
             </div>
           {{end}}
         </div>
+      {{end}}
+    {{end}}
+  </div>
+{{else if eq .View "project"}}
+  <!-- Project Grouped View (Plan A: GTD Status Sections) -->
+  <div class="items-list-container project-sections-container">
+    {{if eq .ProjectStats.TotalCount 0}}
+      <div class="empty-state">
+        <svg class="empty-icon" viewBox="0 0 24 24">
+          <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+        </svg>
+        <p style="font-size: 1rem; font-weight: 500;">このプロジェクトにはまだタスクがありません</p>
+        <p style="font-size: 0.85rem; margin-top: 4px;">下の入力欄から、最初のNext Action（次の一手）を追加しましょう。</p>
+        {{if and .CurrentProject (ne .CurrentProject.Status "done")}}
+          <form class="mini-add-form" style="margin-top: 16px; max-width: 480px;" 
+                hx-post="/items" 
+                hx-swap="none" 
+                onsubmit="setTimeout(() => { this.reset(); }, 30)">
+            <input type="hidden" name="project_id" value="{{.CurrentProject.ID}}">
+            <input type="hidden" name="status" value="next">
+            <input class="form-input" style="padding: 6px 12px;" name="title" placeholder="+ 最初のNext Actionを追加..." required autocomplete="off">
+            <button class="btn-small" style="padding: 6px 14px;" type="submit">追加</button>
+          </form>
+        {{end}}
+      </div>
+    {{else}}
+      {{range .ProjectSections}}
+        {{if or (gt .Count 0) (eq .ID "next") (eq .ID "waiting")}}
+          {{if .Collapsed}}
+            <!-- 折りたたみ可能なセクション（Doneなど） -->
+            <details class="project-section-details" {{if eq $.ItemStatusFilter "done"}}open{{end}}>
+              <summary class="project-section-summary">
+                <span class="project-section-icon done">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                    <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/>
+                  </svg>
+                </span>
+                <span class="project-section-title">{{.Title}}</span>
+                <span class="project-section-badge {{.BadgeClass}}">{{.Count}}件</span>
+                <span class="project-section-toggle-hint">クリックで展開 / 折りたたみ</span>
+              </summary>
+              <div class="project-section-items">
+                {{range .Items}}
+                  <div class="item-card done" 
+                       hx-get="/items/{{.ID}}/detail" 
+                       hx-target="#item-detail-pane" 
+                       hx-swap="innerHTML"
+                       onclick="openDetailPane('{{.ID}}'); document.querySelectorAll('.item-card').forEach(c => c.classList.remove('selected')); this.classList.add('selected');">
+                    <input 
+                      type="checkbox" 
+                      class="item-checkbox" 
+                      checked 
+                      hx-patch="/items/{{.ID}}/status" 
+                      hx-vals='{"status": "next"}' 
+                      hx-swap="none" 
+                      onclick="event.stopPropagation()"
+                      title="未完了に戻す"
+                    >
+                    <div class="item-main-info">
+                      <div class="item-title">{{.Title}}</div>
+                      <div class="item-metadata">
+                        <span class="meta-tag tag-status tag-status-done">Done</span>
+                        {{if .DueDate}}
+                          <span class="meta-tag {{.DueDateClass}}" title="{{.DueTooltip}}">
+                            <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                              <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/>
+                            </svg>
+                            <span>{{.DueDisplay}}</span>
+                          </span>
+                        {{end}}
+                        {{range .Contexts}}
+                          <span class="meta-tag tag-context">{{.Name}}</span>
+                        {{end}}
+                        {{if gt .AttachCount 0}}
+                          <span class="meta-tag tag-attach" title="添付あり ({{.AttachCount}}件)">
+                            <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                              <path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/>
+                            </svg>
+                            <span>{{.AttachCount}}</span>
+                          </span>
+                        {{end}}
+                      </div>
+                    </div>
+                  </div>
+                {{end}}
+              </div>
+            </details>
+          {{else}}
+            <!-- 通常セクション（Next, Waiting, Someday） -->
+            <div class="project-section-group" id="proj-section-{{.ID}}">
+              <div class="project-section-header">
+                <span class="project-section-icon {{.Icon}}">
+                  {{if eq .Icon "next"}}
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+                    </svg>
+                  {{else if eq .Icon "waiting"}}
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                      <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+                    </svg>
+                  {{else if eq .Icon "someday"}}
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                      <path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z"/>
+                    </svg>
+                  {{end}}
+                </span>
+                <h2 class="project-section-title">{{.Title}}</h2>
+                <span class="project-section-badge {{.BadgeClass}}">{{.Count}}件</span>
+              </div>
+              <div class="project-section-items">
+                {{if eq .Count 0}}
+                  <div class="project-section-empty">タスクはありません</div>
+                {{else}}
+                  {{range .Items}}
+                    <div class="item-card {{if eq .Status "done"}}done{{end}}" 
+                         hx-get="/items/{{.ID}}/detail" 
+                         hx-target="#item-detail-pane" 
+                         hx-swap="innerHTML"
+                         onclick="openDetailPane('{{.ID}}'); document.querySelectorAll('.item-card').forEach(c => c.classList.remove('selected')); this.classList.add('selected');">
+                      
+                      <!-- Checkbox -->
+                      <input 
+                        type="checkbox" 
+                        class="item-checkbox" 
+                        {{if eq .Status "done"}}checked{{end}} 
+                        hx-patch="/items/{{.ID}}/status" 
+                        hx-vals='{"status": "{{if eq .Status "done"}}next{{else}}done{{end}}"}' 
+                        hx-swap="none" 
+                        onclick="event.stopPropagation()"
+                        title="{{if eq .Status "done"}}未完了に戻す{{else}}完了にする{{end}}"
+                      >
+
+                      <!-- Main Info -->
+                      <div class="item-main-info">
+                        <div class="item-title">{{.Title}}</div>
+                        <div class="item-metadata">
+                          <!-- ステータスバッジ -->
+                          <span class="meta-tag tag-status {{.StatusBadgeClass}}">{{.StatusLabel}}</span>
+
+                          <!-- 繰り返し設定バッジ -->
+                          {{if ne .Recurrence "none"}}
+                            <span class="meta-tag tag-repeat" title="繰り返しタスク: {{.RecurrenceLabel}}">
+                              <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                                <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
+                              </svg>
+                              <span>{{.RecurrenceLabel}}</span>
+                            </span>
+                          {{end}}
+
+                          <!-- 開始日バッジ -->
+                          {{if .StartDate}}
+                            <span class="meta-tag tag-start-date" title="開始日: {{.FormattedStartDate}} ({{.StartDisplay}})">
+                              <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                                <path d="M8 5v14l11-7z"/>
+                              </svg>
+                              <span>{{.StartDisplay}}</span>
+                            </span>
+                          {{end}}
+
+                          <!-- 期限日バッジ -->
+                          {{if .DueDate}}
+                            <span class="meta-tag {{.DueDateClass}}" title="{{.DueTooltip}}">
+                              <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                                <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/>
+                              </svg>
+                              <span>{{.DueDisplay}}</span>
+                            </span>
+                          {{end}}
+
+                          <!-- コンテキストタグ -->
+                          {{range .Contexts}}
+                            <span class="meta-tag tag-context">{{.Name}}</span>
+                          {{end}}
+
+                          <!-- 添付クリップ数 -->
+                          {{if gt .AttachCount 0}}
+                            <span class="meta-tag tag-attach" title="添付あり ({{.AttachCount}}件)">
+                              <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                                <path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/>
+                              </svg>
+                              <span>{{.AttachCount}}</span>
+                            </span>
+                          {{end}}
+                        </div>
+                      </div>
+
+                      <!-- クイックトグルボタン (Next ⇄ Waiting) -->
+                      {{if or (eq .Status "next") (eq .Status "waiting")}}
+                        <button type="button" 
+                                class="item-quick-toggle-btn" 
+                                hx-patch="/items/{{.ID}}/status" 
+                                hx-vals='{"status": "{{.NextQuickToggleStatus}}"}' 
+                                hx-swap="none" 
+                                onclick="event.stopPropagation()" 
+                                title="{{.QuickToggleLabel}}">
+                          {{if eq .Status "next"}}
+                            <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                              <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+                            </svg>
+                            <span>Waitingへ</span>
+                          {{else}}
+                            <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+                            </svg>
+                            <span>Nextへ</span>
+                          {{end}}
+                        </button>
+                      {{end}}
+                    </div>
+                  {{end}}
+                {{end}}
+              </div>
+
+              <!-- セクション専用追加フォーム -->
+              {{if and $.CurrentProject (ne $.CurrentProject.Status "done")}}
+                <form class="mini-add-form project-section-add-form" 
+                      hx-post="/items" 
+                      hx-swap="none" 
+                      onsubmit="setTimeout(() => { this.reset(); }, 30)">
+                  <input type="hidden" name="project_id" value="{{$.CurrentProject.ID}}">
+                  <input type="hidden" name="status" value="{{.ID}}">
+                  <input class="form-input" style="padding: 5px 10px; font-size: 0.85rem;" name="title" placeholder="{{.AddPlaceholder}}" required autocomplete="off">
+                  <button class="btn-small" style="padding: 5px 12px; font-size: 0.82rem; white-space: nowrap;" type="submit">追加</button>
+                </form>
+              {{end}}
+            </div>
+          {{end}}
+        {{end}}
       {{end}}
     {{end}}
   </div>
@@ -581,6 +874,9 @@
           <div class="item-main-info">
             <div class="item-title">{{.Title}}</div>
             <div class="item-metadata">
+              <!-- ステータスバッジ -->
+              <span class="meta-tag tag-status {{.StatusBadgeClass}}">{{.StatusLabel}}</span>
+
               <!-- 繰り返し設定バッジ -->
               {{if ne .Recurrence "none"}}
                 <span class="meta-tag tag-repeat" title="繰り返しタスク: {{.RecurrenceLabel}}">
@@ -641,6 +937,29 @@
               {{end}}
             </div>
           </div>
+
+          <!-- クイックトグルボタン (Next ⇄ Waiting) -->
+          {{if or (eq .Status "next") (eq .Status "waiting")}}
+            <button type="button" 
+                    class="item-quick-toggle-btn" 
+                    hx-patch="/items/{{.ID}}/status" 
+                    hx-vals='{"status": "{{.NextQuickToggleStatus}}"}' 
+                    hx-swap="none" 
+                    onclick="event.stopPropagation()" 
+                    title="{{.QuickToggleLabel}}">
+              {{if eq .Status "next"}}
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                  <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+                </svg>
+                <span>Waitingへ</span>
+              {{else}}
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+                </svg>
+                <span>Nextへ</span>
+              {{end}}
+            </button>
+          {{end}}
         </div>
       {{end}}
     {{end}}

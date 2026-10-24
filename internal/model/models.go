@@ -49,7 +49,7 @@ type Item struct {
 	ProjectName    string       `json:"project_name"`
 	Title          string       `json:"title"`
 	Body           string       `json:"body"`
-	Status         string       `json:"status"` // 'inbox', 'next', 'waiting', 'someday', 'reference', 'done'
+	Status         string       `json:"status"`     // 'inbox', 'next', 'waiting', 'someday', 'reference', 'done'
 	StartDate      *string      `json:"start_date"` // 開始日（Tickler / Defer Date）
 	DueDate        *string      `json:"due_date"`
 	Recurrence     string       `json:"recurrence"` // 'none', 'daily', 'weekdays', 'weekly', 'monthly', 'yearly'
@@ -97,6 +97,44 @@ func (i Item) StatusLabel() string {
 	default:
 		return i.Status
 	}
+}
+
+// StatusBadgeClass はステータスに応じたCSSクラスを返します
+func (i Item) StatusBadgeClass() string {
+	switch i.Status {
+	case "inbox":
+		return "tag-status-inbox"
+	case "next":
+		return "tag-status-next"
+	case "waiting":
+		return "tag-status-waiting"
+	case "someday":
+		return "tag-status-someday"
+	case "reference":
+		return "tag-status-reference"
+	case "done":
+		return "tag-status-done"
+	default:
+		return "tag-status-default"
+	}
+}
+
+// NextQuickToggleStatus はカード上でNext⇄Waitingをトグルする際の次のステータスを返します
+func (i Item) NextQuickToggleStatus() string {
+	if i.Status == "next" {
+		return "waiting"
+	}
+	return "next"
+}
+
+// QuickToggleLabel はトグルボタンのラベルを返します
+func (i Item) QuickToggleLabel() string {
+	if i.Status == "next" {
+		return "Waitingへ変更"
+	} else if i.Status == "waiting" {
+		return "Next Actionへ戻す"
+	}
+	return ""
 }
 
 // HasContext は指定されたContextIDが含まれているかを判定します
@@ -315,6 +353,29 @@ type ScheduledSection struct {
 	Items      []Item `json:"items"`
 }
 
+// ProjectSection はプロジェクトビューでアイテムをステータス別（Next, Waiting, Someday, Done）にグループ表示するための構造体です
+type ProjectSection struct {
+	ID             string `json:"id"`          // 'next', 'waiting', 'someday', 'done'
+	Title          string `json:"title"`       // 表示タイトル（例: 'Next Actions'）
+	Icon           string `json:"icon"`        // 'next', 'waiting', 'someday', 'done'
+	BadgeClass     string `json:"badge_class"` // 'badge-next', 'badge-waiting', etc.
+	Items          []Item `json:"items"`
+	Count          int    `json:"count"`
+	Collapsed      bool   `json:"collapsed"`       // 初期状態で折りたたむか（Done等）
+	AddPlaceholder string `json:"add_placeholder"` // インライン追加プレースホルダー
+}
+
+// ProjectStats はプロジェクト内タスクのステータス別件数と進捗率を保持します
+type ProjectStats struct {
+	TotalCount   int
+	DoneCount    int
+	NextCount    int
+	WaitingCount int
+	SomedayCount int
+	Progress     int  // 0〜100%
+	IsStalled    bool // activeかつNextActionが0件
+}
+
 // ItemFilter は中央リスト表示時の絞り込み条件です
 type ItemFilter struct {
 	View      string // 'inbox', 'next', 'scheduled', 'waiting', 'someday', 'reference', 'done', 'project'
@@ -379,7 +440,7 @@ type OmniAttachmentResult struct {
 	ItemStatus string `json:"item_status"`
 	Label      string `json:"label"`
 	Target     string `json:"target"`
-	Type       string `json:"type"` // 'url', 'path', 'image'
+	Type       string `json:"type"`        // 'url', 'path', 'image'
 	MatchField string `json:"match_field"` // 'label' or 'target'
 }
 
@@ -394,5 +455,3 @@ func (a OmniAttachmentResult) CleanTargetName() string {
 	}
 	return a.Target
 }
-
-

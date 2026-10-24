@@ -60,27 +60,27 @@
                       hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "next"}' 
                       hx-target="#review-card-{{.ID}}" hx-swap="delete" 
                       style="background-color: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); font-weight: 600;">
-                Next Action (今やる)
+                Next Action
               </button>
               <button class="btn-small" 
                       hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "waiting"}' 
                       hx-target="#review-card-{{.ID}}" hx-swap="delete">
-                Waiting (連絡待ち)
+                Waiting
               </button>
               <button class="btn-small" 
                       hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "someday"}' 
                       hx-target="#review-card-{{.ID}}" hx-swap="delete">
-                Someday (いつか)
+                Someday
               </button>
               <button class="btn-small" 
                       hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "reference"}' 
                       hx-target="#review-card-{{.ID}}" hx-swap="delete">
-                Reference (資料メモ)
+                Reference
               </button>
               <button class="btn-small" 
                       hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "done"}' 
                       hx-target="#review-card-{{.ID}}" hx-swap="delete">
-                Done (完了)
+                Done
               </button>
               <button class="btn-small" 
                       hx-delete="/items/{{.ID}}" 

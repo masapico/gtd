@@ -1599,3 +1599,138 @@ func TestItemDetailProjectAssignmentAndSidebarCount(t *testing.T) {
 	}
 }
 
+func TestProjectStatusSectionsAndDetailContext(t *testing.T) {
+	h, mux, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// 1. プロジェクトを作成
+	projForm := url.Values{}
+	projForm.Set("name", "GTD改善プロジェクト")
+	projForm.Set("description", "UI/UX改善の完了")
+	req := httptest.NewRequest("POST", "/projects", strings.NewReader(projForm.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("POST /projects failed: %d", rec.Code)
+	}
+
+	projs, _ := db.GetProjects(h.DB, "active")
+	if len(projs) < 1 {
+		t.Fatalf("expected at least 1 project, got %d", len(projs))
+	}
+	var projID int64
+	for _, p := range projs {
+		if p.Name == "GTD改善プロジェクト" {
+			projID = p.ID
+			break
+		}
+	}
+	if projID == 0 {
+		t.Fatalf("could not find created project")
+	}
+
+	// 2. Next, Waiting, Someday, Done のタスクを作成
+	statuses := []string{"next", "waiting", "someday", "done"}
+	taskTitles := []string{"UI設計書を作成する", "B氏のレビュー待ち", "将来の機能拡張アイデア", "要件定義の完了"}
+	var taskIDs []int64
+
+	for i, st := range statuses {
+		itemForm := url.Values{}
+		itemForm.Set("title", taskTitles[i])
+		itemForm.Set("project_id", fmt.Sprintf("%d", projID))
+		itemForm.Set("status", st)
+		req = httptest.NewRequest("POST", "/items", strings.NewReader(itemForm.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rec = httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("POST /items with status %s failed: %d", st, rec.Code)
+		}
+	}
+
+	items, _ := db.GetItems(h.DB, model.ItemFilter{ProjectID: &projID})
+	for _, it := range items {
+		taskIDs = append(taskIDs, it.ID)
+	}
+
+	// 3. プロジェクト一覧ビュー (GET /partials/items?project_id=...)
+	req = httptest.NewRequest("GET", fmt.Sprintf("/partials/items?project_id=%d", projID), nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /partials/items?project_id failed: %d", rec.Code)
+	}
+	projectHTML := rec.Body.String()
+
+	// セクション見出しの検証
+	if !strings.Contains(projectHTML, "Next Actions") {
+		t.Errorf("expected 'Next Actions' section in HTML, got:\n%s", projectHTML)
+	}
+	if !strings.Contains(projectHTML, "Waiting For") {
+		t.Errorf("expected 'Waiting For' section in HTML, got:\n%s", projectHTML)
+	}
+	if !strings.Contains(projectHTML, "Someday / Ideas") {
+		t.Errorf("expected 'Someday / Ideas' section in HTML, got:\n%s", projectHTML)
+	}
+	if !strings.Contains(projectHTML, "完了済み") {
+		t.Errorf("expected '完了済み' section in HTML, got:\n%s", projectHTML)
+	}
+
+	// 進捗バーとフィルタチップの検証
+	if !strings.Contains(projectHTML, "project-progress-wrap") {
+		t.Errorf("expected 'project-progress-wrap' in HTML")
+	}
+	if !strings.Contains(projectHTML, "chip-next") || !strings.Contains(projectHTML, "chip-waiting") {
+		t.Errorf("expected status filter chips in HTML")
+	}
+
+	// カード上のステータスバッジとクイックトグルボタンの検証
+	if !strings.Contains(projectHTML, "tag-status-next") {
+		t.Errorf("expected 'tag-status-next' badge in HTML")
+	}
+	if !strings.Contains(projectHTML, "tag-status-waiting") {
+		t.Errorf("expected 'tag-status-waiting' badge in HTML")
+	}
+	if !strings.Contains(projectHTML, "item-quick-toggle-btn") {
+		t.Errorf("expected 'item-quick-toggle-btn' in HTML")
+	}
+
+	// 4. ステータス指定フィルタリング (GET /partials/items?project_id=...&item_status=waiting)
+	req = httptest.NewRequest("GET", fmt.Sprintf("/partials/items?project_id=%d&item_status=waiting", projID), nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET with item_status=waiting failed: %d", rec.Code)
+	}
+	filteredHTML := rec.Body.String()
+	if !strings.Contains(filteredHTML, "Waiting For") {
+		t.Errorf("expected waiting section in filtered HTML")
+	}
+	if strings.Contains(filteredHTML, "Next Actions") {
+		t.Errorf("expected next section to be hidden when item_status=waiting")
+	}
+
+	// 5. 詳細ペインのコンテキストバーと大見出し検証 (GET /items/{id}/detail)
+	if len(taskIDs) > 0 {
+		firstID := taskIDs[0]
+		req = httptest.NewRequest("GET", fmt.Sprintf("/items/%d/detail", firstID), nil)
+		rec = httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET /items/{id}/detail failed: %d", rec.Code)
+		}
+		detailHTML := rec.Body.String()
+
+		// ロケーションコンテキストバーの検証
+		if !strings.Contains(detailHTML, "detail-context-bar") {
+			t.Errorf("expected 'detail-context-bar' in detail pane HTML")
+		}
+		if !strings.Contains(detailHTML, "detail-project-crumb") {
+			t.Errorf("expected 'detail-project-crumb' in detail pane HTML")
+		}
+		if !strings.Contains(detailHTML, "detail-title-input") {
+			t.Errorf("expected 'detail-title-input' in detail pane HTML")
+		}
+	}
+}

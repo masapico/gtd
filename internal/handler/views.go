@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -32,6 +33,9 @@ type ItemListData struct {
 	Description       string
 	Items             []model.Item
 	ScheduledSections []model.ScheduledSection
+	ProjectSections   []model.ProjectSection
+	ProjectStats      model.ProjectStats
+	ItemStatusFilter  string
 	Contexts          []model.Context
 	CurrentProject    *model.Project
 	CurrentContext    *model.Context
@@ -57,7 +61,7 @@ func (h *Handler) buildSidebarData(view string, selectedProjectID int64) Sidebar
 	}
 }
 
-func (h *Handler) buildItemListData(view string, pID *int64, cID *int64, search string, projectStatus string) (ItemListData, error) {
+func (h *Handler) buildItemListData(view string, pID *int64, cID *int64, search string, projectStatus string, itemStatusFilter string) (ItemListData, error) {
 	if view == "" {
 		view = "inbox"
 	}
@@ -115,6 +119,8 @@ func (h *Handler) buildItemListData(view string, pID *int64, cID *int64, search 
 	title := "Inbox"
 	description := "頭の中にあるものをすべて書き出す場所。判断は後から行います。"
 	var scheduledSections []model.ScheduledSection
+	var projectSections []model.ProjectSection
+	var projectStats model.ProjectStats
 
 	switch view {
 	case "next":
@@ -223,6 +229,91 @@ func (h *Handler) buildItemListData(view string, pID *int64, cID *int64, search 
 			title = "Projects"
 			description = "複数の行動を要するゴール。"
 		}
+
+		// ステータス別アイテムの分類
+		var nextItems, waitingItems, somedayItems, doneItems []model.Item
+		for _, it := range items {
+			switch it.Status {
+			case "next", "inbox":
+				nextItems = append(nextItems, it)
+			case "waiting":
+				waitingItems = append(waitingItems, it)
+			case "someday", "reference":
+				somedayItems = append(somedayItems, it)
+			case "done":
+				doneItems = append(doneItems, it)
+			default:
+				nextItems = append(nextItems, it)
+			}
+		}
+
+		totalCount := len(items)
+		doneCount := len(doneItems)
+		progress := 0
+		if totalCount > 0 {
+			progress = int(math.Round(float64(doneCount) / float64(totalCount) * 100.0))
+		}
+		isStalled := (currentProject != nil && currentProject.Status == "active" && len(nextItems) == 0)
+
+		projectStats = model.ProjectStats{
+			TotalCount:   totalCount,
+			DoneCount:    doneCount,
+			NextCount:    len(nextItems),
+			WaitingCount: len(waitingItems),
+			SomedayCount: len(somedayItems),
+			Progress:     progress,
+			IsStalled:    isStalled,
+		}
+
+		// セクションの構築（itemStatusFilterに応じた絞り込み、空なら全セクション）
+		if itemStatusFilter == "" || itemStatusFilter == "all" || itemStatusFilter == "next" {
+			projectSections = append(projectSections, model.ProjectSection{
+				ID:             "next",
+				Title:          "Next Actions",
+				Icon:           "next",
+				BadgeClass:     "badge-next",
+				Items:          nextItems,
+				Count:          len(nextItems),
+				Collapsed:      false,
+				AddPlaceholder: "+ このプロジェクトのNext Actionを追加...",
+			})
+		}
+		if itemStatusFilter == "" || itemStatusFilter == "all" || itemStatusFilter == "waiting" {
+			projectSections = append(projectSections, model.ProjectSection{
+				ID:             "waiting",
+				Title:          "Waiting For",
+				Icon:           "waiting",
+				BadgeClass:     "badge-waiting",
+				Items:          waitingItems,
+				Count:          len(waitingItems),
+				Collapsed:      false,
+				AddPlaceholder: "+ 連絡待ち・依頼中のタスクを追加...",
+			})
+		}
+		if itemStatusFilter == "" || itemStatusFilter == "all" || itemStatusFilter == "someday" {
+			projectSections = append(projectSections, model.ProjectSection{
+				ID:             "someday",
+				Title:          "Someday / Ideas",
+				Icon:           "someday",
+				BadgeClass:     "badge-someday",
+				Items:          somedayItems,
+				Count:          len(somedayItems),
+				Collapsed:      false,
+				AddPlaceholder: "+ 将来やるタスク・アイデアを追加...",
+			})
+		}
+		if itemStatusFilter == "" || itemStatusFilter == "all" || itemStatusFilter == "done" {
+			projectSections = append(projectSections, model.ProjectSection{
+				ID:             "done",
+				Title:          "完了済み",
+				Icon:           "done",
+				BadgeClass:     "badge-done",
+				Items:          doneItems,
+				Count:          len(doneItems),
+				Collapsed:      true, // 初期状態折りたたみ
+				AddPlaceholder: "",
+			})
+		}
 	case "projects":
 		title = "プロジェクト管理・履歴"
 		description = "進行中・保留中・完了済みの全プロジェクトの確認とステータス変更。"
@@ -241,6 +332,9 @@ func (h *Handler) buildItemListData(view string, pID *int64, cID *int64, search 
 		Description:       description,
 		Items:             items,
 		ScheduledSections: scheduledSections,
+		ProjectSections:   projectSections,
+		ProjectStats:      projectStats,
+		ItemStatusFilter:  itemStatusFilter,
 		Contexts:          contexts,
 		CurrentProject:    currentProject,
 		CurrentContext:    currentContext,
@@ -278,9 +372,10 @@ func (h *Handler) ServeIndex(w http.ResponseWriter, r *http.Request) {
 
 	search := r.URL.Query().Get("search")
 	projectStatus := r.URL.Query().Get("project_status")
+	itemStatus := r.URL.Query().Get("item_status")
 
 	sidebarData := h.buildSidebarData(view, selectedID)
-	itemListData, err := h.buildItemListData(view, pID, cID, search, projectStatus)
+	itemListData, err := h.buildItemListData(view, pID, cID, search, projectStatus, itemStatus)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -333,8 +428,9 @@ func (h *Handler) ServeItemList(w http.ResponseWriter, r *http.Request) {
 
 	search := r.URL.Query().Get("search")
 	projectStatus := r.URL.Query().Get("project_status")
+	itemStatus := r.URL.Query().Get("item_status")
 
-	data, err := h.buildItemListData(view, pID, cID, search, projectStatus)
+	data, err := h.buildItemListData(view, pID, cID, search, projectStatus, itemStatus)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

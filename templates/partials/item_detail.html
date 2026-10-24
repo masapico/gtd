@@ -33,6 +33,29 @@
     </div>
   </div>
 
+  <!-- Location Context Bar (オムニサーチ等のアクセス時でも所属とステータスが一目瞭然) -->
+  <div class="detail-context-bar">
+    <div class="detail-context-tags">
+      <span class="detail-status-pill {{.Item.StatusBadgeClass}}">{{.Item.StatusLabel}}</span>
+      {{if .Item.ProjectName}}
+        <a class="detail-project-crumb" 
+           hx-get="/partials/items?project_id={{derefInt64 .Item.ProjectID}}" 
+           hx-target="#main-content-pane" 
+           title="中央ペインでこのプロジェクトを開く">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
+            <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+          </svg>
+          <span>{{.Item.ProjectName}}</span>
+          <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" style="opacity: 0.6; margin-left: 2px;">
+            <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
+          </svg>
+        </a>
+      {{else}}
+        <span class="detail-project-crumb unassigned" title="プロジェクト未所属">Inbox / 単発タスク</span>
+      {{end}}
+    </div>
+  </div>
+
   <div class="detail-body">
     <!-- Status Selector -->
     <div class="form-group">
@@ -99,14 +122,14 @@
       <input type="hidden" name="status" value="{{.Item.Status}}">
 
       <!-- Title -->
-      <div class="form-group">
+      <div class="form-group form-group-hero">
         <label class="form-label" for="detail-title">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
             <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
           </svg>
-          <span>タイトル</span>
+          <span>タスク名</span>
         </label>
-        <input id="detail-title" name="title" class="form-input" type="text" value="{{.Item.Title}}" placeholder="タイトル... (#タグ ^期日 も利用可能)" required autocomplete="off">
+        <input id="detail-title" name="title" class="form-input detail-title-input" type="text" value="{{.Item.Title}}" placeholder="タスク名を入力... (#タグ ^期日 も利用可能)" required autocomplete="off">
       </div>
 
       <!-- Project -->
