@@ -81,5 +81,35 @@ func TestEmbeddedServer(t *testing.T) {
 	if !strings.Contains(body, "id=\"modal-container\"") {
 		t.Errorf("expected modal-container in body, got: %s", body)
 	}
+	if !strings.Contains(body, "id=\"clock-modal\"") {
+		t.Errorf("expected clock-modal in body, got: %s", body)
+	}
+	if !strings.Contains(body, "id=\"time-alert-banner\"") {
+		t.Errorf("expected time-alert-banner in body, got: %s", body)
+	}
+	if !strings.Contains(body, "id=\"clock-badge-timer\"") {
+		t.Errorf("expected clock-badge-timer in body, got: %s", body)
+	}
+	if !strings.Contains(body, "id=\"clock-badge-alarm\"") {
+		t.Errorf("expected clock-badge-alarm in body, got: %s", body)
+	}
+
+	// 3. Verify static/app.js contains clock & timer logic
+	req = httptest.NewRequest("GET", "/static/app.js", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200 for /static/app.js, got %d", rec.Code)
+	}
+	jsBody := rec.Body.String()
+	if !strings.Contains(jsBody, "openClockModal") {
+		t.Errorf("expected openClockModal in app.js")
+	}
+	if !strings.Contains(jsBody, "selectTimerPreset") {
+		t.Errorf("expected selectTimerPreset in app.js")
+	}
+	if !strings.Contains(jsBody, "saveAlarmFromInput") {
+		t.Errorf("expected saveAlarmFromInput in app.js")
+	}
 }
 

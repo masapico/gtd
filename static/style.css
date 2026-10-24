@@ -168,19 +168,52 @@ body {
 
 .topbar-clock {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
+  gap: 8px;
   padding: 4px 10px;
   background-color: var(--md-sys-color-surface-container-low);
   border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--md-shape-sm);
+  border-radius: var(--md-shape-md);
   user-select: none;
   line-height: 1.15;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  outline: none;
+  font-family: inherit;
+}
+
+.topbar-clock:hover {
+  background-color: var(--md-sys-color-surface-container-high);
+  border-color: var(--md-sys-color-primary);
+  box-shadow: var(--md-elevation-1);
+}
+
+.topbar-clock:focus-visible {
+  border-color: var(--md-sys-color-primary);
+  box-shadow: 0 0 0 2px var(--md-sys-color-primary-container);
+}
+
+.topbar-clock:active {
+  transform: scale(0.98);
+}
+
+.clock-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--md-sys-color-primary);
+  flex-shrink: 0;
+}
+
+.clock-text-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
 }
 
 .clock-date {
-  font-size: 0.68rem;
+  font-size: 0.66rem;
   color: var(--md-sys-color-on-surface-variant);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   letter-spacing: 0.02em;
@@ -192,6 +225,64 @@ body {
   color: var(--md-sys-color-on-surface);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.04em;
+}
+
+/* Subtle Active Badges in Clock Widget */
+.clock-status-badges {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.clock-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: var(--md-shape-full);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.clock-badge-timer {
+  background-color: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  border: 1px solid rgba(0, 99, 155, 0.2);
+}
+
+.clock-badge-alarm {
+  background-color: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+  border: 1px solid rgba(82, 96, 112, 0.2);
+}
+
+/* Ringing / Timeup Pulse on Clock */
+.topbar-clock.ringing {
+  background-color: var(--md-sys-color-error-container) !important;
+  border-color: var(--md-sys-color-error) !important;
+  color: var(--md-sys-color-on-error-container) !important;
+  animation: clockAlertPulse 1.2s infinite ease-in-out;
+}
+
+.topbar-clock.ringing .clock-icon-wrapper {
+  color: var(--md-sys-color-error) !important;
+}
+
+@keyframes clockAlertPulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(186, 26, 26, 0.5);
+  }
+  50% {
+    transform: scale(1.04);
+    box-shadow: 0 0 0 6px rgba(186, 26, 26, 0);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(186, 26, 26, 0);
+  }
 }
 
 .menu-toggle-btn {
@@ -2282,4 +2373,456 @@ body {
   color: var(--md-sys-color-primary);
   border-color: var(--md-sys-color-primary);
 }
+
+/* ==========================================================================
+   Clock / Timer & Alarm Modal & Alert Banner (Material Design 3)
+   ========================================================================== */
+
+/* Time Alert Banner (Floating High-Elevation Notification) */
+.time-alert-banner {
+  position: fixed;
+  top: 60px;
+  right: 24px;
+  z-index: 1200;
+  max-width: 440px;
+  width: calc(100% - 48px);
+  background-color: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-on-surface);
+  border: 1.5px solid var(--md-sys-color-primary);
+  border-radius: var(--md-shape-md);
+  box-shadow: var(--md-elevation-3);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  animation: alertBannerSlide 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.time-alert-banner.hidden {
+  display: none !important;
+}
+
+@keyframes alertBannerSlide {
+  from {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.time-alert-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.time-alert-icon-box {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--md-shape-full);
+  background-color: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  animation: alertIconPulse 1.5s infinite ease-in-out;
+}
+
+@keyframes alertIconPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+.time-alert-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.time-alert-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--md-sys-color-on-surface);
+  line-height: 1.3;
+}
+
+.time-alert-message {
+  font-size: 0.8rem;
+  color: var(--md-sys-color-on-surface-variant);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.btn-time-alert-dismiss {
+  background-color: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+  border: none;
+  border-radius: var(--md-shape-full);
+  padding: 8px 18px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.btn-time-alert-dismiss:hover {
+  filter: brightness(1.1);
+  box-shadow: var(--md-elevation-1);
+}
+
+.btn-time-alert-dismiss:active {
+  transform: scale(0.96);
+}
+
+/* Clock Modal Dialog */
+.clock-modal-dialog {
+  max-width: 460px;
+}
+
+.clock-modal-tabs {
+  display: flex;
+  background-color: var(--md-sys-color-surface-container-high);
+  border-radius: var(--md-shape-full);
+  padding: 4px;
+  margin: 0 24px 16px;
+  gap: 4px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.clock-tab-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: none;
+  background: transparent;
+  border-radius: var(--md-shape-full);
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  outline: none;
+}
+
+.clock-tab-btn:hover {
+  color: var(--md-sys-color-on-surface);
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+.clock-tab-btn.active {
+  background-color: var(--md-sys-color-surface-container-lowest);
+  color: var(--md-sys-color-primary);
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.clock-tab-btn svg {
+  flex-shrink: 0;
+}
+
+.clock-modal-body {
+  padding: 0 24px 24px;
+}
+
+.clock-tab-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Timer Display Card */
+.timer-display-card {
+  background-color: var(--md-sys-color-surface-container-low);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-shape-lg);
+  padding: 20px 16px;
+  text-align: center;
+  margin-bottom: 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.timer-mode-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--md-sys-color-primary);
+  letter-spacing: 0.02em;
+  margin-bottom: 4px;
+}
+
+.timer-countdown {
+  font-size: 3.4rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  color: var(--md-sys-color-on-surface);
+  letter-spacing: 0.02em;
+  margin: 6px 0 12px;
+}
+
+.timer-progress-bar-bg {
+  width: 100%;
+  height: 6px;
+  background-color: var(--md-sys-color-surface-container-highest);
+  border-radius: var(--md-shape-full);
+  overflow: hidden;
+}
+
+.timer-progress-bar {
+  height: 100%;
+  background-color: var(--md-sys-color-primary);
+  border-radius: var(--md-shape-full);
+  transition: width 0.3s ease;
+}
+
+/* Presets & Filter Chips */
+.timer-presets-section, .alarm-presets-section {
+  margin-bottom: 16px;
+}
+
+.timer-section-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface-variant);
+  margin-bottom: 8px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.timer-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.m3-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--md-shape-full);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  background-color: var(--md-sys-color-surface-container-lowest);
+  color: var(--md-sys-color-on-surface);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  outline: none;
+}
+
+.m3-chip:hover {
+  background-color: var(--md-sys-color-surface-container-high);
+  border-color: var(--md-sys-color-primary);
+}
+
+.m3-chip.active {
+  background-color: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  border-color: var(--md-sys-color-primary);
+  font-weight: 600;
+}
+
+.m3-chip svg {
+  flex-shrink: 0;
+}
+
+/* 5-Min Stepper */
+.timer-stepper-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background-color: var(--md-sys-color-surface-container-low);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-shape-sm);
+  margin-bottom: 18px;
+}
+
+.timer-stepper-label {
+  font-size: 0.82rem;
+  color: var(--md-sys-color-on-surface-variant);
+  font-weight: 500;
+}
+
+.timer-stepper-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.m3-tonal-btn-sm {
+  padding: 5px 12px;
+  border-radius: var(--md-shape-full);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  background-color: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.m3-tonal-btn-sm:hover {
+  background-color: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  border-color: var(--md-sys-color-primary);
+}
+
+.m3-tonal-btn-sm:active {
+  transform: scale(0.96);
+}
+
+/* Controls */
+.timer-controls-row, .alarm-controls-row {
+  display: flex;
+  gap: 10px;
+}
+
+.m3-btn-filled {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: var(--md-shape-full);
+  border: none;
+  background-color: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  outline: none;
+}
+
+.m3-btn-filled:hover {
+  filter: brightness(1.1);
+  box-shadow: var(--md-elevation-1);
+}
+
+.m3-btn-filled:active {
+  transform: scale(0.98);
+}
+
+.m3-btn-filled:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: none;
+}
+
+.m3-btn-outlined {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 18px;
+  border-radius: var(--md-shape-full);
+  border: 1px solid var(--md-sys-color-outline);
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  font-size: 0.92rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  outline: none;
+}
+
+.m3-btn-outlined:hover {
+  background-color: var(--md-sys-color-surface-container-high);
+}
+
+.m3-btn-outlined:active {
+  transform: scale(0.98);
+}
+
+.m3-btn-outlined:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: transparent !important;
+}
+
+/* Alarm Setup */
+.alarm-setup-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.alarm-time-control {
+  font-size: 1.4rem;
+  font-weight: 700;
+  padding: 10px 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  border-radius: var(--md-shape-md);
+  border: 1.5px solid var(--md-sys-color-outline-variant);
+  background-color: var(--md-sys-color-surface-container-lowest);
+  color: var(--md-sys-color-on-surface);
+  width: 100%;
+}
+
+.alarm-time-control:focus {
+  border-color: var(--md-sys-color-primary);
+  box-shadow: 0 0 0 3px var(--md-sys-color-primary-container);
+}
+
+.alarm-status-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background-color: var(--md-sys-color-surface-container-low);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-shape-md);
+  transition: all 0.2s ease;
+}
+
+.alarm-status-box.active {
+  background-color: var(--md-sys-color-secondary-container);
+  border-color: var(--md-sys-color-secondary);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+.alarm-status-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--md-shape-full);
+  background-color: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-on-surface-variant);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.alarm-status-box.active .alarm-status-icon {
+  background-color: var(--md-sys-color-secondary);
+  color: var(--md-sys-color-on-secondary);
+}
+
+.alarm-status-headline {
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.alarm-status-detail {
+  font-size: 0.78rem;
+  opacity: 0.85;
+  margin-top: 2px;
+}
+
 

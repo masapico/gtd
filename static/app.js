@@ -119,6 +119,13 @@ document.addEventListener('keydown', (e) => {
 
   // Esc: モーダルを閉じる / オムニサーチドロップダウンを閉じる / プロジェクトインライン編集を閉じる / 詳細インスペクタを閉じる / サイドバーを閉じる
   if (e.key === 'Escape') {
+    const clockModal = document.getElementById('clock-modal');
+    if (clockModal && !clockModal.classList.contains('hidden')) {
+      e.preventDefault();
+      closeClockModal();
+      return;
+    }
+
     const modal = document.getElementById('modal-container');
     if (modal && !modal.classList.contains('hidden') && modal.innerHTML.trim() !== '') {
       e.preventDefault();
@@ -580,20 +587,586 @@ function onLauncherSelected() {
   }
 }
 
-// 11. ヘッダー時計ウィジェットモック (2段表示: YYYY-MM-DD ddd / HH:mm:ss)
+// 11. ヘッダー時計 & タイマー & アラーム (Material Design 3 準拠 & localStorage 永続化)
+
+// 状態変数群
+let timerState = 'idle'; // 'idle', 'running', 'paused'
+let timerDuration = 25 * 60; // 秒数 (デフォルト 25分)
+let timerRemaining = 25 * 60;
+let timerTargetTimestamp = 0; // 終了予定UNIXミリ秒
+let timerMode = 'pomodoro'; // 'pomodoro', 'short_break', 'long_break', 'custom'
+
+let alarmEnabled = false;
+let alarmTime = ''; // "HH:MM"
+let alarmDate = ''; // "YYYY-MM-DD"
+
+let isTimeAlertActive = false;
+let alertIntervalId = null;
+let originalDocumentTitle = document.title || 'GTD - Getting Things Done';
+let audioCtx = null;
+
+const clockWeekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+// 日付文字列 (YYYY-MM-DD) の取得
+function getTodayDateString() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+// 秒数を "MM:SS" または "HH:MM:SS" にフォーマット
+function formatSecondsToMMSS(totalSeconds) {
+  const secs = Math.max(0, Math.floor(totalSeconds));
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  if (h > 0) {
+    return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+// localStorage から状態を復元
+function loadTimeStateFromStorage() {
+  try {
+    // 1. タイマーの読み込み
+    const savedDuration = localStorage.getItem('gtd_timer_duration');
+    if (savedDuration) {
+      timerDuration = parseInt(savedDuration, 10) || (25 * 60);
+    }
+
+    const savedMode = localStorage.getItem('gtd_timer_mode');
+    if (savedMode) {
+      timerMode = savedMode;
+    }
+
+    const savedState = localStorage.getItem('gtd_timer_state');
+    const savedTarget = localStorage.getItem('gtd_timer_target_timestamp');
+    const savedRemaining = localStorage.getItem('gtd_timer_remaining');
+
+    if (savedState === 'running' && savedTarget) {
+      const target = parseInt(savedTarget, 10);
+      const now = Date.now();
+      if (target > now) {
+        timerState = 'running';
+        timerTargetTimestamp = target;
+        timerRemaining = Math.max(0, Math.round((target - now) / 1000));
+      } else {
+        // バックグラウンド中に時間経過
+        timerState = 'idle';
+        timerRemaining = 0;
+        localStorage.setItem('gtd_timer_state', 'idle');
+        localStorage.setItem('gtd_timer_remaining', '0');
+        localStorage.removeItem('gtd_timer_target_timestamp');
+        setTimeout(() => {
+          triggerTimeAlert('timer', 'タイマー終了', '設定したタイマー時間が終了しました');
+        }, 500);
+      }
+    } else if (savedState === 'paused' && savedRemaining) {
+      timerState = 'paused';
+      timerRemaining = parseInt(savedRemaining, 10) || timerDuration;
+    } else {
+      timerState = 'idle';
+      timerRemaining = timerDuration;
+    }
+
+    // 2. アラームの読み込み
+    const savedAlarmEnabled = localStorage.getItem('gtd_alarm_enabled');
+    const savedAlarmTime = localStorage.getItem('gtd_alarm_time');
+    const savedAlarmDate = localStorage.getItem('gtd_alarm_date');
+    const todayStr = getTodayDateString();
+
+    if (savedAlarmEnabled === 'true' && savedAlarmTime && savedAlarmDate === todayStr) {
+      const [ah, am] = savedAlarmTime.split(':').map(Number);
+      const now = new Date();
+      const targetAlarmTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), ah, am, 0);
+
+      if (targetAlarmTime.getTime() > now.getTime()) {
+        alarmEnabled = true;
+        alarmTime = savedAlarmTime;
+        alarmDate = savedAlarmDate;
+      } else {
+        // 当日だがすでに過ぎた時刻
+        alarmEnabled = false;
+        localStorage.removeItem('gtd_alarm_enabled');
+      }
+    } else {
+      alarmEnabled = false;
+      localStorage.removeItem('gtd_alarm_enabled');
+    }
+  } catch (err) {
+    console.error('Failed to load time state from localStorage', err);
+  }
+}
+
+// モーダルの開閉とタブ切り替え
+function openClockModal() {
+  const modal = document.getElementById('clock-modal');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+
+  // アラート作動中なら解除
+  if (isTimeAlertActive) {
+    dismissTimeAlert();
+  }
+
+  updateTimerModalUI();
+  updateAlarmModalUI();
+}
+
+function closeClockModal() {
+  const modal = document.getElementById('clock-modal');
+  if (modal) {
+    modal.classList.add('hidden');
+  }
+}
+
+function switchClockTab(tab) {
+  const timerTabBtn = document.getElementById('tab-btn-timer');
+  const alarmTabBtn = document.getElementById('tab-btn-alarm');
+  const timerPanel = document.getElementById('clock-panel-timer');
+  const alarmPanel = document.getElementById('clock-panel-alarm');
+
+  if (tab === 'timer') {
+    timerTabBtn?.classList.add('active');
+    alarmTabBtn?.classList.remove('active');
+    timerPanel?.classList.remove('hidden');
+    alarmPanel?.classList.add('hidden');
+  } else {
+    alarmTabBtn?.classList.add('active');
+    timerTabBtn?.classList.remove('active');
+    alarmPanel?.classList.remove('hidden');
+    timerPanel?.classList.add('hidden');
+    ensureAlarmInputDefault();
+  }
+}
+
+// --------------------------------------------------------------------------
+// タイマー & ポモドーロ制御
+// --------------------------------------------------------------------------
+
+function selectTimerPreset(minutes, mode) {
+  timerDuration = minutes * 60;
+  timerRemaining = timerDuration;
+  timerState = 'idle';
+  timerMode = mode;
+
+  localStorage.setItem('gtd_timer_duration', String(timerDuration));
+  localStorage.setItem('gtd_timer_remaining', String(timerRemaining));
+  localStorage.setItem('gtd_timer_mode', timerMode);
+  localStorage.setItem('gtd_timer_state', 'idle');
+  localStorage.removeItem('gtd_timer_target_timestamp');
+
+  updateTimerModalUI();
+  updateClockWidgetBadges();
+}
+
+function adjustTimer(deltaMinutes) {
+  let currentMinutes = Math.floor(timerRemaining / 60);
+  let newMinutes = currentMinutes + deltaMinutes;
+  if (newMinutes < 5) newMinutes = 5;
+  if (newMinutes > 180) newMinutes = 180;
+
+  timerRemaining = newMinutes * 60;
+
+  if (timerState === 'idle') {
+    timerDuration = timerRemaining;
+    timerMode = 'custom';
+    localStorage.setItem('gtd_timer_duration', String(timerDuration));
+    localStorage.setItem('gtd_timer_mode', timerMode);
+  } else if (timerState === 'running') {
+    timerTargetTimestamp = Date.now() + timerRemaining * 1000;
+    localStorage.setItem('gtd_timer_target_timestamp', String(timerTargetTimestamp));
+  }
+
+  localStorage.setItem('gtd_timer_remaining', String(timerRemaining));
+  updateTimerModalUI();
+  updateClockWidgetBadges();
+}
+
+function toggleTimer() {
+  if (timerState === 'running') {
+    // 一時停止
+    timerState = 'paused';
+    timerRemaining = Math.max(0, Math.round((timerTargetTimestamp - Date.now()) / 1000));
+    localStorage.setItem('gtd_timer_state', 'paused');
+    localStorage.setItem('gtd_timer_remaining', String(timerRemaining));
+    localStorage.removeItem('gtd_timer_target_timestamp');
+  } else {
+    // 開始または再開
+    if (timerRemaining <= 0) {
+      timerRemaining = timerDuration;
+    }
+    timerState = 'running';
+    timerTargetTimestamp = Date.now() + timerRemaining * 1000;
+    localStorage.setItem('gtd_timer_state', 'running');
+    localStorage.setItem('gtd_timer_target_timestamp', String(timerTargetTimestamp));
+    localStorage.removeItem('gtd_timer_remaining');
+  }
+
+  updateTimerModalUI();
+  updateClockWidgetBadges();
+}
+
+function resetTimer() {
+  timerState = 'idle';
+  timerRemaining = timerDuration;
+
+  localStorage.setItem('gtd_timer_state', 'idle');
+  localStorage.setItem('gtd_timer_remaining', String(timerRemaining));
+  localStorage.removeItem('gtd_timer_target_timestamp');
+
+  updateTimerModalUI();
+  updateClockWidgetBadges();
+}
+
+function updateTimerModalUI() {
+  const countdownEl = document.getElementById('timer-countdown');
+  const toggleBtn = document.getElementById('timer-toggle-btn');
+  const toggleText = document.getElementById('timer-toggle-text');
+  const toggleIcon = document.getElementById('timer-toggle-icon');
+  const progressBar = document.getElementById('timer-progress-bar');
+  const modeLabel = document.getElementById('timer-mode-label');
+
+  if (countdownEl) {
+    countdownEl.textContent = formatSecondsToMMSS(timerRemaining);
+  }
+
+  if (progressBar) {
+    const pct = timerDuration > 0 ? Math.min(100, Math.max(0, (timerRemaining / timerDuration) * 100)) : 100;
+    progressBar.style.width = `${pct}%`;
+  }
+
+  if (modeLabel) {
+    const mins = Math.round(timerDuration / 60);
+    if (timerMode === 'pomodoro') {
+      modeLabel.textContent = `ポモドーロ (${mins}分)`;
+    } else if (timerMode === 'short_break') {
+      modeLabel.textContent = `小休憩 (${mins}分)`;
+    } else if (timerMode === 'long_break') {
+      modeLabel.textContent = `長休憩 (${mins}分)`;
+    } else {
+      modeLabel.textContent = `タイマー (${mins}分)`;
+    }
+  }
+
+  // プリセットチップのアクティブ状態
+  document.querySelectorAll('.timer-chips-row .m3-chip').forEach(c => c.classList.remove('active'));
+  if (timerMode === 'pomodoro' && timerDuration === 25 * 60) {
+    document.getElementById('chip-pomo-25')?.classList.add('active');
+  } else if (timerMode === 'short_break' && timerDuration === 5 * 60) {
+    document.getElementById('chip-pomo-short')?.classList.add('active');
+  } else if (timerMode === 'long_break' && timerDuration === 15 * 60) {
+    document.getElementById('chip-pomo-long')?.classList.add('active');
+  } else if (timerDuration === 30 * 60) {
+    document.getElementById('chip-preset-30')?.classList.add('active');
+  } else if (timerDuration === 45 * 60) {
+    document.getElementById('chip-preset-45')?.classList.add('active');
+  } else if (timerDuration === 60 * 60) {
+    document.getElementById('chip-preset-60')?.classList.add('active');
+  }
+
+  if (toggleText && toggleIcon) {
+    if (timerState === 'running') {
+      toggleText.textContent = '一時停止';
+      toggleIcon.innerHTML = '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
+    } else {
+      toggleText.textContent = timerState === 'paused' ? '再開' : '開始';
+      toggleIcon.innerHTML = '<path d="M8 5v14l11-7z"/>';
+    }
+  }
+}
+
+// --------------------------------------------------------------------------
+// アラーム制御 (当日限定 & デフォルト現在時刻+1時間)
+// --------------------------------------------------------------------------
+
+function ensureAlarmInputDefault() {
+  const input = document.getElementById('alarm-time-input');
+  if (!input) return;
+  if (!input.value) {
+    setAlarmOffset(60);
+  } else {
+    validateAlarmTime(input.value);
+  }
+}
+
+function setAlarmOffset(offsetMinutes) {
+  const now = new Date();
+  const target = new Date(now.getTime() + offsetMinutes * 60 * 1000);
+
+  // 当日限定：日をまたぐ場合は 23:59 に丸める
+  if (target.getDate() !== now.getDate()) {
+    target.setHours(23, 59, 0, 0);
+  }
+
+  const h = String(target.getHours()).padStart(2, '0');
+  const m = String(target.getMinutes()).padStart(2, '0');
+  const timeStr = `${h}:${m}`;
+
+  const input = document.getElementById('alarm-time-input');
+  if (input) {
+    input.value = timeStr;
+  }
+
+  // クイック指定チップのアクティブ制御
+  document.querySelectorAll('.alarm-presets-section .m3-chip').forEach(c => c.classList.remove('active'));
+  if (offsetMinutes === 60) {
+    document.getElementById('chip-alarm-default')?.classList.add('active');
+  }
+
+  validateAlarmTime(timeStr);
+}
+
+function validateAlarmTime(timeStr) {
+  const msgEl = document.getElementById('alarm-validation-msg');
+  const setBtn = document.getElementById('alarm-set-btn');
+
+  if (!timeStr) {
+    if (msgEl) {
+      msgEl.textContent = '※当日の現在時刻より後の時刻を設定してください';
+      msgEl.style.color = 'var(--md-sys-color-on-surface-variant)';
+    }
+    if (setBtn) setBtn.disabled = true;
+    return false;
+  }
+
+  const [h, m] = timeStr.split(':').map(Number);
+  const now = new Date();
+  const targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0);
+
+  if (targetDate.getTime() <= now.getTime()) {
+    if (msgEl) {
+      msgEl.textContent = '※当日の現在時刻より後の時刻を指定してください (過去の時刻は無効です)';
+      msgEl.style.color = 'var(--md-sys-color-error)';
+    }
+    if (setBtn) setBtn.disabled = true;
+    return false;
+  }
+
+  const diffMinutes = Math.round((targetDate.getTime() - now.getTime()) / 60000);
+  const diffHours = Math.floor(diffMinutes / 60);
+  const remainingMins = diffMinutes % 60;
+  let diffStr = '';
+  if (diffHours > 0) {
+    diffStr = `${diffHours}時間${remainingMins > 0 ? remainingMins + '分' : ''}`;
+  } else {
+    diffStr = `${remainingMins}分`;
+  }
+
+  if (msgEl) {
+    msgEl.textContent = `現在から約 ${diffStr} 後にアラームが鳴ります`;
+    msgEl.style.color = 'var(--md-sys-color-primary)';
+  }
+  if (setBtn) setBtn.disabled = false;
+  return true;
+}
+
+function onAlarmInputChange() {
+  const input = document.getElementById('alarm-time-input');
+  if (input) {
+    validateAlarmTime(input.value);
+  }
+}
+
+function saveAlarmFromInput() {
+  const input = document.getElementById('alarm-time-input');
+  if (!input || !validateAlarmTime(input.value)) return;
+
+  alarmTime = input.value;
+  alarmDate = getTodayDateString();
+  alarmEnabled = true;
+
+  localStorage.setItem('gtd_alarm_enabled', 'true');
+  localStorage.setItem('gtd_alarm_time', alarmTime);
+  localStorage.setItem('gtd_alarm_date', alarmDate);
+
+  updateAlarmModalUI();
+  updateClockWidgetBadges();
+  showToast(`アラームを ${alarmTime} にセットしました`);
+}
+
+function clearAlarm() {
+  alarmEnabled = false;
+  alarmTime = '';
+  alarmDate = '';
+
+  localStorage.removeItem('gtd_alarm_enabled');
+  localStorage.removeItem('gtd_alarm_time');
+  localStorage.removeItem('gtd_alarm_date');
+
+  updateAlarmModalUI();
+  updateClockWidgetBadges();
+  showToast('アラームを解除しました');
+}
+
+function updateAlarmModalUI() {
+  const input = document.getElementById('alarm-time-input');
+  const statusBox = document.getElementById('alarm-status-box');
+  const headline = document.getElementById('alarm-status-headline');
+  const detail = document.getElementById('alarm-status-detail');
+  const cancelBtn = document.getElementById('alarm-cancel-btn');
+
+  if (alarmEnabled && alarmTime) {
+    if (input) input.value = alarmTime;
+    statusBox?.classList.add('active');
+    if (headline) headline.textContent = `アラーム設定中: ${alarmTime}`;
+
+    const [h, m] = alarmTime.split(':').map(Number);
+    const now = new Date();
+    const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0);
+    const diffMin = Math.max(0, Math.round((target.getTime() - now.getTime()) / 60000));
+    if (detail) detail.textContent = `本日 ${alarmTime} に通知します (残り 約${diffMin}分)`;
+    if (cancelBtn) cancelBtn.disabled = false;
+  } else {
+    statusBox?.classList.remove('active');
+    if (headline) headline.textContent = 'アラームは未設定です';
+    if (detail) detail.textContent = '時刻を指定して「アラームをセット」を押してください';
+    if (cancelBtn) cancelBtn.disabled = true;
+    if (input && !input.value) {
+      setAlarmOffset(60);
+    }
+  }
+}
+
+// --------------------------------------------------------------------------
+// タイムアップ・アラーム到達通知 (視覚変化 & チャイム)
+// --------------------------------------------------------------------------
+
+function playSoftChime() {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    if (!audioCtx) audioCtx = new AudioContext();
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    osc.type = 'sine';
+    // 柔らかな2音チャイム (587Hz -> 880Hz)
+    osc.frequency.setValueAtTime(587.33, now);
+    osc.frequency.setValueAtTime(880, now + 0.15);
+
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.18, now + 0.04);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.6);
+  } catch (err) {
+    // オートプレイ制限環境では静かにフォールバック
+  }
+}
+
+function triggerTimeAlert(type, title, message) {
+  isTimeAlertActive = true;
+
+  // 1. ヘッダー時計ウィジェットのパルス発光
+  const clockEl = document.getElementById('topbar-clock');
+  clockEl?.classList.add('ringing');
+
+  // 2. 画面上部へのフローティング警告バナー表示
+  const banner = document.getElementById('time-alert-banner');
+  const titleEl = document.getElementById('time-alert-title');
+  const msgEl = document.getElementById('time-alert-message');
+  if (banner) banner.classList.remove('hidden');
+  if (titleEl) titleEl.textContent = title;
+  if (msgEl) msgEl.textContent = message;
+
+  // 3. ブラウザタブタイトルの点滅
+  if (alertIntervalId) clearInterval(alertIntervalId);
+  let isAlertTitle = true;
+  alertIntervalId = setInterval(() => {
+    document.title = isAlertTitle ? `【時間です】${title}` : originalDocumentTitle;
+    isAlertTitle = !isAlertTitle;
+  }, 1000);
+
+  // 4. ピュアJSソフトチャイム鳴動
+  playSoftChime();
+}
+
+function dismissTimeAlert() {
+  isTimeAlertActive = false;
+
+  const clockEl = document.getElementById('topbar-clock');
+  clockEl?.classList.remove('ringing');
+
+  const banner = document.getElementById('time-alert-banner');
+  banner?.classList.add('hidden');
+
+  if (alertIntervalId) {
+    clearInterval(alertIntervalId);
+    alertIntervalId = null;
+  }
+  document.title = originalDocumentTitle;
+}
+
+// --------------------------------------------------------------------------
+// ヘッダー時計ウィジェットのバッジ更新
+// --------------------------------------------------------------------------
+
+function updateClockWidgetBadges() {
+  const timerBadge = document.getElementById('clock-badge-timer');
+  const timerBadgeText = document.getElementById('clock-badge-timer-text');
+  const alarmBadge = document.getElementById('clock-badge-alarm');
+  const alarmBadgeText = document.getElementById('clock-badge-alarm-text');
+
+  // タイマーバッジ
+  if (timerBadge && timerBadgeText) {
+    if (timerState === 'running' || timerState === 'paused') {
+      timerBadge.classList.remove('hidden');
+      timerBadgeText.textContent = formatSecondsToMMSS(timerRemaining);
+      if (timerState === 'paused') {
+        timerBadge.title = `タイマー一時停止中 (${formatSecondsToMMSS(timerRemaining)})`;
+        timerBadge.style.opacity = '0.75';
+      } else {
+        timerBadge.title = `タイマー動作中 (残り ${formatSecondsToMMSS(timerRemaining)})`;
+        timerBadge.style.opacity = '1';
+      }
+    } else {
+      timerBadge.classList.add('hidden');
+    }
+  }
+
+  // アラームバッジ
+  if (alarmBadge && alarmBadgeText) {
+    if (alarmEnabled && alarmTime) {
+      alarmBadge.classList.remove('hidden');
+      alarmBadgeText.textContent = alarmTime;
+      alarmBadge.title = `本日 ${alarmTime} にアラーム設定中`;
+    } else {
+      alarmBadge.classList.add('hidden');
+    }
+  }
+}
+
+// --------------------------------------------------------------------------
+// 時計初期化 ＆ 毎秒ループ処理
+// --------------------------------------------------------------------------
+
 function initClock() {
   const dateEl = document.getElementById('clock-date');
   const timeEl = document.getElementById('clock-time');
   if (!dateEl || !timeEl) return;
 
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  // localStorage から状態を復旧
+  loadTimeStateFromStorage();
 
-  function update() {
+  function tick() {
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
-    const weekday = days[now.getDay()];
+    const weekday = clockWeekdays[now.getDay()];
 
     const hours = String(now.getHours()).padStart(2, '0');
     const minutes = String(now.getMinutes()).padStart(2, '0');
@@ -601,10 +1174,39 @@ function initClock() {
 
     dateEl.textContent = `${year}-${month}-${day} ${weekday}`;
     timeEl.textContent = `${hours}:${minutes}:${seconds}`;
+
+    // 1. タイマーカウントダウン判定
+    if (timerState === 'running') {
+      const remaining = Math.max(0, Math.round((timerTargetTimestamp - Date.now()) / 1000));
+      timerRemaining = remaining;
+      if (timerRemaining <= 0) {
+        timerState = 'idle';
+        localStorage.setItem('gtd_timer_state', 'idle');
+        localStorage.setItem('gtd_timer_remaining', '0');
+        localStorage.removeItem('gtd_timer_target_timestamp');
+        updateTimerModalUI();
+        triggerTimeAlert('timer', 'タイマー終了', `${Math.round(timerDuration / 60)}分のタイマーが終了しました`);
+      } else {
+        updateTimerModalUI();
+      }
+    }
+
+    // 2. アラーム到達判定 (00秒ジャストに発火)
+    if (alarmEnabled && alarmTime) {
+      const [ah, am] = alarmTime.split(':').map(Number);
+      if (now.getHours() === ah && now.getMinutes() === am && now.getSeconds() === 0) {
+        const ringTime = alarmTime;
+        clearAlarm();
+        triggerTimeAlert('alarm', 'アラーム時刻到達', `指定の時刻 (${ringTime}) になりました`);
+      }
+    }
+
+    // 3. ウィジェット内のミニバッジ更新
+    updateClockWidgetBadges();
   }
 
-  update();
-  setInterval(update, 1000);
+  tick();
+  setInterval(tick, 1000);
 }
 
 // ページロード時に時計を初期化

@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GTD - Personal Task & Info Manager</title>
-  <link rel="stylesheet" href="/static/style.css?v=8">
+  <link rel="stylesheet" href="/static/style.css?v=9">
   <script src="/static/htmx.min.js"></script>
-  <script src="/static/app.js?v=8"></script>
+  <script src="/static/app.js?v=9"></script>
 </head>
 <body hx-ext="morph">
 
@@ -38,12 +38,11 @@
             name="title" 
             class="quick-capture-input" 
             type="text" 
-            placeholder="タスク名 #タグ ^期日 (例: 資料作成 #30分 ^today|^金)" 
+            placeholder="Ctrl+i: タスク名 #タグ ^期日 (例: 資料作成 #30分 ^today|^金)" 
             title="スマート記法対応: #タグ名 でContext付与、^today / ^tomorrow / ^金 / ^日付 で期日指定"
             autocomplete="off" 
             required
           >
-          <span class="shortcut-badge" title="ショートカットキー (Ctrl+I)">Ctrl+I</span>
         </div>
       </form>
 
@@ -58,7 +57,7 @@
             name="q" 
             class="omnisearch-input" 
             type="text" 
-            placeholder="タスク・添付を検索..." 
+            placeholder="Ctrl+f: タスク・添付を検索..." 
             title="タスク・メモ・添付ファイルを全横断リアルタイム検索"
             autocomplete="off" 
             hx-get="/search"
@@ -73,7 +72,6 @@
               <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
             </svg>
           </button>
-          <span class="shortcut-badge" title="ショートカットキー (Ctrl+F)">Ctrl+F</span>
         </div>
 
         <!-- 検索結果ポップオーバー -->
@@ -93,16 +91,62 @@
         <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
           <path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/>
         </svg>
-        <span class="shortcut-badge shortcut-badge-sm">Ctrl+L</span>
       </button>
 
-      <!-- Clock Widget Mock (2-tier display) -->
-      <div class="topbar-clock" id="topbar-clock" title="現在時刻">
-        <div class="clock-date" id="clock-date">----/--/-- ---</div>
-        <div class="clock-time" id="clock-time">--:--:--</div>
-      </div>
+      <!-- Clock Widget (M3 Interactive Button with Indicators) -->
+      <button type="button" 
+              class="topbar-clock" 
+              id="topbar-clock" 
+              onclick="openClockModal()"
+              title="時計・タイマー・アラーム設定" 
+              aria-label="時計とタイマー・アラーム設定">
+        <span class="clock-icon-wrapper" aria-hidden="true">
+          <svg class="clock-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+            <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+          </svg>
+        </span>
+        <div class="clock-text-group">
+          <div class="clock-date" id="clock-date">----/--/-- ---</div>
+          <div class="clock-time" id="clock-time">--:--:--</div>
+        </div>
+        <!-- Active Status Indicators (subtle badges for alarm & timer) -->
+        <div class="clock-status-badges" id="clock-status-badges">
+          <span class="clock-badge clock-badge-timer hidden" id="clock-badge-timer" title="タイマー動作中">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+              <path d="M15 1H9v2h6V1zm-4 13h2V8h-2v6zm8.03-6.61l1.42-1.42c-.43-.51-.9-.99-1.41-1.41l-1.42 1.42A8.962 8.962 0 0 0 12 4c-4.97 0-9 4.03-9 9s4.02 9 9 9a8.994 8.994 0 0 0 7.03-14.61zM12 20c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/>
+            </svg>
+            <span id="clock-badge-timer-text">25:00</span>
+          </span>
+          <span class="clock-badge clock-badge-alarm hidden" id="clock-badge-alarm" title="アラーム設定中">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+              <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/>
+            </svg>
+            <span id="clock-badge-alarm-text">--:--</span>
+          </span>
+        </div>
+      </button>
     </div>
   </header>
+
+  <!-- Alarm & Timer Alert Banner -->
+  <div id="time-alert-banner" class="time-alert-banner hidden" role="alert" aria-live="assertive">
+    <div class="time-alert-content">
+      <div class="time-alert-icon-box" id="time-alert-icon-box">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+          <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/>
+        </svg>
+      </div>
+      <div class="time-alert-text">
+        <div class="time-alert-title" id="time-alert-title">時間になりました</div>
+        <div class="time-alert-message" id="time-alert-message">指定の時刻またはタイマーが終了しました</div>
+      </div>
+    </div>
+    <div class="time-alert-actions">
+      <button type="button" class="btn-time-alert-dismiss" onclick="dismissTimeAlert()">
+        確認
+      </button>
+    </div>
+  </div>
 
   <!-- 3-Pane Body -->
   <div class="app-body">
@@ -124,6 +168,181 @@
 
   <!-- Modal Overlay Container -->
   <div id="modal-container" class="modal-overlay hidden" tabindex="-1" onclick="if(event.target === this) closeModal();"></div>
+
+  <!-- Clock / Timer / Alarm Modal -->
+  <div id="clock-modal" class="modal-overlay hidden" tabindex="-1" onclick="if(event.target === this) closeClockModal();">
+    <div class="modal-dialog clock-modal-dialog" onclick="event.stopPropagation();">
+      <!-- Modal Header -->
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-title-row">
+            <span class="modal-icon">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+              </svg>
+            </span>
+            <h2 class="modal-title">タイマー & アラーム</h2>
+          </div>
+          <p class="modal-subtitle">ポモドーロタイマーや当日のリマインダーアラームを設定できます</p>
+        </div>
+        <button type="button" class="modal-close-btn" onclick="closeClockModal()" title="閉じる (Esc)" aria-label="閉じる">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- M3 Tab Navigation / Segmented Buttons -->
+      <div class="clock-modal-tabs">
+        <button type="button" id="tab-btn-timer" class="clock-tab-btn active" onclick="switchClockTab('timer')">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+            <path d="M15 1H9v2h6V1zm-4 13h2V8h-2v6zm8.03-6.61l1.42-1.42c-.43-.51-.9-.99-1.41-1.41l-1.42 1.42A8.962 8.962 0 0 0 12 4c-4.97 0-9 4.03-9 9s4.02 9 9 9a8.994 8.994 0 0 0 7.03-14.61zM12 20c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/>
+          </svg>
+          タイマー & ポモドーロ
+        </button>
+        <button type="button" id="tab-btn-alarm" class="clock-tab-btn" onclick="switchClockTab('alarm')">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+            <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/>
+          </svg>
+          アラーム
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="modal-body clock-modal-body">
+        <!-- Panel 1: Timer & Pomodoro -->
+        <div id="clock-panel-timer" class="clock-tab-panel">
+          <!-- Countdown Display Card -->
+          <div class="timer-display-card">
+            <div class="timer-mode-label" id="timer-mode-label">ポモドーロ (25分)</div>
+            <div class="timer-countdown" id="timer-countdown">25:00</div>
+            <div class="timer-progress-bar-bg">
+              <div class="timer-progress-bar" id="timer-progress-bar" style="width: 100%;"></div>
+            </div>
+          </div>
+
+          <!-- Quick Preset Chips -->
+          <div class="timer-presets-section">
+            <div class="timer-section-label">モード & プリセット</div>
+            <div class="timer-chips-row">
+              <button type="button" class="m3-chip active" id="chip-pomo-25" onclick="selectTimerPreset(25, 'pomodoro')">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6l5.2 3.15.75-1.23-4.45-2.67z"/>
+                </svg>
+                ポモドーロ 25分
+              </button>
+              <button type="button" class="m3-chip" id="chip-pomo-short" onclick="selectTimerPreset(5, 'short_break')">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                  <path d="M20 3H4v10c0 2.21 1.79 4 4 4h6c2.21 0 4-1.79 4-4v-3h2c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 5h-2V5h2v3zM4 19h16v2H4z"/>
+                </svg>
+                小休憩 5分
+              </button>
+              <button type="button" class="m3-chip" id="chip-pomo-long" onclick="selectTimerPreset(15, 'long_break')">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                  <path d="M19 7h-8v6h8V7zm2-4H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14z"/>
+                </svg>
+                長休憩 15分
+              </button>
+              <button type="button" class="m3-chip" id="chip-preset-30" onclick="selectTimerPreset(30, 'custom')">
+                30分
+              </button>
+              <button type="button" class="m3-chip" id="chip-preset-45" onclick="selectTimerPreset(45, 'custom')">
+                45分
+              </button>
+              <button type="button" class="m3-chip" id="chip-preset-60" onclick="selectTimerPreset(60, 'custom')">
+                60分
+              </button>
+            </div>
+          </div>
+
+          <!-- 5-Minute Stepper Adjustment -->
+          <div class="timer-stepper-row">
+            <span class="timer-stepper-label">時間微調整 (5分刻み):</span>
+            <div class="timer-stepper-btns">
+              <button type="button" class="m3-tonal-btn-sm" onclick="adjustTimer(-5)" title="5分減らす">
+                -5分
+              </button>
+              <button type="button" class="m3-tonal-btn-sm" onclick="adjustTimer(5)" title="5分増やす">
+                +5分
+              </button>
+            </div>
+          </div>
+
+          <!-- Controls: Start/Pause & Reset -->
+          <div class="timer-controls-row">
+            <button type="button" class="m3-btn-filled" id="timer-toggle-btn" onclick="toggleTimer()">
+              <svg id="timer-toggle-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path d="M8 5v14l11-7z"/>
+              </svg>
+              <span id="timer-toggle-text">開始</span>
+            </button>
+            <button type="button" class="m3-btn-outlined" id="timer-reset-btn" onclick="resetTimer()">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+              </svg>
+              リセット
+            </button>
+          </div>
+        </div>
+
+        <!-- Panel 2: Alarm -->
+        <div id="clock-panel-alarm" class="clock-tab-panel hidden">
+          <!-- Alarm Setup Form -->
+          <div class="alarm-setup-card">
+            <div class="form-group">
+              <label for="alarm-time-input" class="form-label">
+                アラーム時刻 (当日のみ)
+              </label>
+              <div class="alarm-input-wrapper">
+                <input type="time" id="alarm-time-input" class="form-control alarm-time-control" onchange="onAlarmInputChange()" required>
+              </div>
+              <div id="alarm-validation-msg" class="form-help-text">※当日の現在時刻より後の時刻を設定してください</div>
+            </div>
+
+            <!-- Quick Offset Presets -->
+            <div class="alarm-presets-section">
+              <div class="timer-section-label">クイック指定</div>
+              <div class="timer-chips-row">
+                <button type="button" class="m3-chip" onclick="setAlarmOffset(15)">+15分</button>
+                <button type="button" class="m3-chip" onclick="setAlarmOffset(30)">+30分</button>
+                <button type="button" class="m3-chip active" id="chip-alarm-default" onclick="setAlarmOffset(60)">+1時間 (デフォルト)</button>
+                <button type="button" class="m3-chip" onclick="setAlarmOffset(120)">+2時間</button>
+              </div>
+            </div>
+
+            <!-- Current Alarm Status Display -->
+            <div class="alarm-status-box" id="alarm-status-box">
+              <div class="alarm-status-icon">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                  <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/>
+                </svg>
+              </div>
+              <div class="alarm-status-info">
+                <div class="alarm-status-headline" id="alarm-status-headline">アラームは未設定です</div>
+                <div class="alarm-status-detail" id="alarm-status-detail">時刻を指定して「アラームをセット」を押してください</div>
+              </div>
+            </div>
+
+            <!-- Alarm Actions -->
+            <div class="alarm-controls-row">
+              <button type="button" class="m3-btn-filled" id="alarm-set-btn" onclick="saveAlarmFromInput()">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                </svg>
+                アラームをセット
+              </button>
+              <button type="button" class="m3-btn-outlined" id="alarm-cancel-btn" onclick="clearAlarm()" disabled>
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                  <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                </svg>
+                解除
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
 </body>
 </html>
