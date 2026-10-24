@@ -119,7 +119,7 @@ func (h *Handler) buildItemListData(view string, pID *int64, cID *int64, search 
 		title = "Waiting For"
 		description = "誰かの返信や成果物待ちのタスク。"
 	case "someday":
-		title = "Someday / Maybe"
+		title = "Someday"
 		description = "いつかやりたいこと、将来のアイデア、保留項目。"
 	case "reference":
 		title = "References"

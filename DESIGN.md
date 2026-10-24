@@ -117,7 +117,7 @@ CREATE TABLE attachments (
 - **Next Actions**（今やるべき行動一覧。下部で `@PC` などのContextタグによる絞り込みが可能）  
 - **Waiting For**（他人の返信・外部要因待ち一覧）  
 - **Projects**（アクティブなプロジェクト一覧）  
-- **Someday / Maybe**（保留リスト）  
+- **Someday**（保留リスト）  
 - **References**（行動を伴わない資料・メモ一覧）  
 - **Weekly Review**（週次レビュー開始ボタン）
 
