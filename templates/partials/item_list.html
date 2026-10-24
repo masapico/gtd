@@ -418,7 +418,7 @@
              hx-get="/items/{{.ID}}/detail" 
              hx-target="#item-detail-pane" 
              hx-swap="innerHTML"
-             onclick="openDetailPane(); document.querySelectorAll('.item-card').forEach(c => c.classList.remove('selected')); this.classList.add('selected');">
+             onclick="openDetailPane('{{.ID}}'); document.querySelectorAll('.item-card').forEach(c => c.classList.remove('selected')); this.classList.add('selected');">
           
           <!-- Checkbox -->
           <input 

@@ -2,6 +2,8 @@ package handler
 
 import (
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -269,6 +271,16 @@ func (h *Handler) DeleteItem(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "Invalid item ID", http.StatusBadRequest)
 		return
+	}
+
+	// 紐づく添付ファイル（画像実体）を削除前にクリーンアップ
+	if attachments, err := db.GetAttachmentsByItemID(h.DB, id); err == nil {
+		for _, att := range attachments {
+			if att.Type == "image" && att.Target != "" {
+				filePath := filepath.Join(h.ImagesDir, filepath.Base(att.Target))
+				_ = os.Remove(filePath)
+			}
+		}
 	}
 
 	if err := db.DeleteItem(h.DB, id); err != nil {

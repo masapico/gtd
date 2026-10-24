@@ -76,6 +76,12 @@ func (h *Handler) PasteImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 対象アイテムが存在するか確認
+	if _, err := db.GetItemByID(h.DB, itemID); err != nil {
+		http.Error(w, "Item not found", http.StatusNotFound)
+		return
+	}
+
 	// 20MBまでのマルチパートフォームを許容
 	if err := r.ParseMultipartForm(20 << 20); err != nil {
 		http.Error(w, "Failed to parse multipart form", http.StatusBadRequest)
@@ -89,9 +95,22 @@ func (h *Handler) PasteImage(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// 拡張子判定（デフォルトは .png）
+	// 保存先ディレクトリの存在を保証
+	if err := os.MkdirAll(h.ImagesDir, 0755); err != nil {
+		http.Error(w, "Failed to ensure images directory", http.StatusInternalServerError)
+		return
+	}
+
+	// 拡張子判定（デフォルトは .png、主要な画像形式に対応）
 	ext := filepath.Ext(header.Filename)
-	if ext == "" || (!strings.EqualFold(ext, ".png") && !strings.EqualFold(ext, ".jpg") && !strings.EqualFold(ext, ".jpeg")) {
+	validExts := map[string]bool{
+		".png":  true,
+		".jpg":  true,
+		".jpeg": true,
+		".webp": true,
+		".gif":  true,
+	}
+	if !validExts[strings.ToLower(ext)] {
 		ext = ".png"
 	}
 
@@ -217,7 +236,23 @@ func (h *Handler) DeleteAttachment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.Trigger(w, "itemChanged")
-	w.WriteHeader(http.StatusOK)
+
+	// 削除後の最新の添付一覧を再描画して返す
+	attachments, err := db.GetAttachmentsByItemID(h.DB, att.ItemID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	data := struct {
+		ItemID      int64
+		Attachments []model.Attachment
+	}{
+		ItemID:      att.ItemID,
+		Attachments: attachments,
+	}
+
+	h.Render(w, "attachments.html", data)
 }
 
 // ServeImage は保存されたスクリーンショット画像を配信します

@@ -57,6 +57,7 @@ func setupTestServer(t *testing.T) (*Handler, http.Handler, func()) {
 	mux.HandleFunc("POST /items/{id}/attachments", h.AddAttachment)
 	mux.HandleFunc("POST /items/{id}/paste-image", h.PasteImage)
 	mux.HandleFunc("GET /items/{id}/attachments", h.GetAttachments)
+	mux.HandleFunc("DELETE /attachments/{id}", h.DeleteAttachment)
 	mux.HandleFunc("POST /projects", h.CreateProject)
 	mux.HandleFunc("PUT /projects/{id}", h.UpdateProject)
 	mux.HandleFunc("PATCH /projects/{id}/status", h.UpdateProjectStatus)
@@ -290,6 +291,139 @@ func TestPasteImageAndAttachment(t *testing.T) {
 	filePath := filepath.Join(h.ImagesDir, attachments[0].Target)
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		t.Errorf("expected image file to exist at %s", filePath)
+	}
+
+	// 2. Test uploading WebP format
+	bodyWebp := &bytes.Buffer{}
+	writerWebp := multipart.NewWriter(bodyWebp)
+	partWebp, _ := writerWebp.CreateFormFile("image", "screen.webp")
+	partWebp.Write([]byte("RIFFdummyWEBP"))
+	writerWebp.Close()
+
+	reqWebp := httptest.NewRequest("POST", fmt.Sprintf("/items/%d/paste-image", itemID), bodyWebp)
+	reqWebp.Header.Set("Content-Type", writerWebp.FormDataContentType())
+	recWebp := httptest.NewRecorder()
+	mux.ServeHTTP(recWebp, reqWebp)
+	if recWebp.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for webp upload, got %d", recWebp.Code)
+	}
+
+	attachmentsWebp, err := db.GetAttachmentsByItemID(h.DB, itemID)
+	if err != nil || len(attachmentsWebp) != 2 {
+		t.Fatalf("expected 2 attachments, got %d", len(attachmentsWebp))
+	}
+	if !strings.HasSuffix(attachmentsWebp[1].Target, ".webp") {
+		t.Errorf("expected .webp suffix, got %s", attachmentsWebp[1].Target)
+	}
+
+	// 3. Test non-existent item ID returns 404
+	bodyNonExistent := &bytes.Buffer{}
+	writerNonExistent := multipart.NewWriter(bodyNonExistent)
+	partNonExistent, _ := writerNonExistent.CreateFormFile("image", "dummy.png")
+	partNonExistent.Write([]byte("dummy"))
+	writerNonExistent.Close()
+
+	reqNonExistent := httptest.NewRequest("POST", "/items/99999/paste-image", bodyNonExistent)
+	reqNonExistent.Header.Set("Content-Type", writerNonExistent.FormDataContentType())
+	recNonExistent := httptest.NewRecorder()
+	mux.ServeHTTP(recNonExistent, reqNonExistent)
+	if recNonExistent.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 StatusNotFound for invalid item ID, got %d", recNonExistent.Code)
+	}
+}
+
+func TestDeleteAttachment(t *testing.T) {
+	h, mux, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	item := &model.Item{Title: "Item with attachment"}
+	itemID, _ := db.CreateItem(h.DB, item)
+
+	// Create dummy image file in ImagesDir
+	os.MkdirAll(h.ImagesDir, 0755)
+	dummyFilename := "test_screenshot.png"
+	filePath := filepath.Join(h.ImagesDir, dummyFilename)
+	os.WriteFile(filePath, []byte("fake image data"), 0644)
+
+	att := &model.Attachment{
+		ItemID: itemID,
+		Label:  "Test Screenshot",
+		Target: dummyFilename,
+		Type:   "image",
+	}
+	attID, err := db.CreateAttachment(h.DB, att)
+	if err != nil {
+		t.Fatalf("CreateAttachment failed: %v", err)
+	}
+
+	// Delete attachment via DELETE /attachments/{id}
+	req := httptest.NewRequest("DELETE", fmt.Sprintf("/attachments/%d", attID), nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", rec.Code)
+	}
+
+	// Verify response contains updated attachments partial
+	if !strings.Contains(rec.Body.String(), "attachments-section") && !strings.Contains(rec.Body.String(), "form-group") {
+		t.Errorf("expected attachments partial in response, got %s", rec.Body.String())
+	}
+
+	// Verify attachment was removed from DB
+	attachments, err := db.GetAttachmentsByItemID(h.DB, itemID)
+	if err != nil || len(attachments) != 0 {
+		t.Fatalf("expected 0 attachments after delete, got %d", len(attachments))
+	}
+
+	// Verify image file was removed from disk
+	if _, err := os.Stat(filePath); !os.IsNotExist(err) {
+		t.Errorf("expected image file to be deleted from disk at %s", filePath)
+	}
+}
+
+func TestDeleteItemCleansUpImages(t *testing.T) {
+	h, mux, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	item := &model.Item{Title: "Task to delete"}
+	itemID, _ := db.CreateItem(h.DB, item)
+
+	// Create dummy image file in ImagesDir
+	os.MkdirAll(h.ImagesDir, 0755)
+	dummyFilename := "task_image_to_delete.png"
+	filePath := filepath.Join(h.ImagesDir, dummyFilename)
+	os.WriteFile(filePath, []byte("fake image data"), 0644)
+
+	att := &model.Attachment{
+		ItemID: itemID,
+		Label:  "Attached Image",
+		Target: dummyFilename,
+		Type:   "image",
+	}
+	_, err := db.CreateAttachment(h.DB, att)
+	if err != nil {
+		t.Fatalf("CreateAttachment failed: %v", err)
+	}
+
+	// Delete item via DELETE /items/{id}
+	req := httptest.NewRequest("DELETE", fmt.Sprintf("/items/%d", itemID), nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", rec.Code)
+	}
+
+	// Verify item was removed from DB
+	_, err = db.GetItemByID(h.DB, itemID)
+	if err == nil {
+		t.Errorf("expected item to be deleted from DB")
+	}
+
+	// Verify image file on disk was also deleted
+	if _, err := os.Stat(filePath); !os.IsNotExist(err) {
+		t.Errorf("expected image file to be deleted from disk when item was deleted at %s", filePath)
 	}
 }
 

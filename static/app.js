@@ -3,44 +3,89 @@
 // ==========================================================================
 
 // 1. クリップボードからの画像ペースト (Ctrl+V / Cmd+V)
+let isUploadingImage = false;
+
 document.addEventListener('paste', async (e) => {
   const detailPane = document.getElementById('item-detail-pane');
-  if (!detailPane || detailPane.classList.contains('closed') || !detailPane.dataset.itemId) {
+  if (!detailPane || detailPane.classList.contains('closed')) {
     return;
   }
 
-  const items = e.clipboardData?.items;
-  if (!items) return;
+  // Quick Capture にフォーカスがある場合はタスク詳細への画像貼り付けを行わない
+  if (document.activeElement && document.activeElement.id === 'quick-capture-input') {
+    return;
+  }
 
-  for (const item of items) {
-    if (item.type.indexOf('image') !== -1) {
-      e.preventDefault();
-      const file = item.getAsFile();
-      const formData = new FormData();
-      formData.append('image', file);
+  // item-detail-pane または内部の item-detail-content から itemId を取得
+  const contentEl = document.getElementById('item-detail-content') || detailPane.querySelector('[data-item-id]');
+  const itemId = detailPane.dataset.itemId || contentEl?.dataset?.itemId;
+  if (!itemId) {
+    return;
+  }
 
-      const itemId = detailPane.dataset.itemId;
-      try {
-        const res = await fetch(`/items/${itemId}/paste-image`, {
-          method: 'POST',
-          body: formData,
-        });
-        if (res.ok) {
-          showToast('スクリーンショットを保存しました');
-          // 添付一覧を再取得
-          const attContainer = document.getElementById('attachments-container');
-          if (attContainer && window.htmx) {
-            htmx.ajax('GET', `/items/${itemId}/attachments`, { target: '#attachments-container', swap: 'innerHTML' });
-          }
-        } else {
-          showToast('画像保存に失敗しました');
-        }
-      } catch (err) {
-        console.error('Failed to paste image', err);
-        showToast('画像保存エラー');
+  // 入力フォームにフォーカスがあり、テキストがクリップボードにある場合は通常のテキストペーストを優先
+  const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+  const isInputActive = activeTag === 'input' || activeTag === 'textarea';
+  const hasText = e.clipboardData?.types?.includes('text/plain') && e.clipboardData.getData('text/plain').length > 0;
+  if (isInputActive && hasText) {
+    return;
+  }
+
+  // 画像データの抽出 (files または items から)
+  let imageFile = null;
+  if (e.clipboardData?.files && e.clipboardData.files.length > 0) {
+    for (const f of e.clipboardData.files) {
+      if (f.type && f.type.startsWith('image/')) {
+        imageFile = f;
+        break;
       }
-      break;
     }
+  }
+  if (!imageFile && e.clipboardData?.items) {
+    for (const item of e.clipboardData.items) {
+      if (item.type && item.type.startsWith('image/')) {
+        imageFile = item.getAsFile();
+        if (imageFile) break;
+      }
+    }
+  }
+
+  if (!imageFile) return;
+
+  // 画像ペースト処理の実行
+  e.preventDefault();
+  if (isUploadingImage) return;
+  isUploadingImage = true;
+
+  const formData = new FormData();
+  formData.append('image', imageFile, imageFile.name || 'screenshot.png');
+
+  try {
+    showToast('スクリーンショットをアップロード中...');
+    const res = await fetch(`/items/${itemId}/paste-image`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (res.ok) {
+      showToast('スクリーンショットを保存しました');
+      // 添付一覧を再取得
+      const attContainer = document.getElementById('attachments-container');
+      if (attContainer && window.htmx) {
+        htmx.ajax('GET', `/items/${itemId}/attachments`, { target: '#attachments-container', swap: 'innerHTML' });
+      }
+      // 中央リストの添付数バッジやサイドバー等を最新化
+      if (window.htmx) {
+        htmx.trigger(document.body, 'itemChanged');
+      }
+    } else {
+      const errText = await res.text().catch(() => '');
+      showToast('画像保存に失敗しました' + (errText ? `: ${errText}` : ''));
+    }
+  } catch (err) {
+    console.error('Failed to paste image', err);
+    showToast('画像保存エラー');
+  } finally {
+    isUploadingImage = false;
   }
 });
 
@@ -99,10 +144,13 @@ function focusQuickCapture() {
 }
 
 // 3. 詳細ペインの開閉制御
-function openDetailPane() {
+function openDetailPane(itemId) {
   const detailPane = document.getElementById('item-detail-pane');
   if (detailPane) {
     detailPane.classList.remove('closed');
+    if (itemId) {
+      detailPane.dataset.itemId = itemId;
+    }
   }
 }
 
@@ -110,6 +158,7 @@ function closeDetailPane() {
   const detailPane = document.getElementById('item-detail-pane');
   if (detailPane) {
     detailPane.classList.add('closed');
+    delete detailPane.dataset.itemId;
   }
   // リストの選択ハイライト解除
   document.querySelectorAll('.item-card.selected').forEach(el => el.classList.remove('selected'));
