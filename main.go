@@ -9,7 +9,9 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
+	"gtd/internal/backup"
 	"gtd/internal/db"
 	"gtd/internal/handler"
 )
@@ -20,10 +22,45 @@ var staticFS embed.FS
 //go:embed templates/*
 var templateFS embed.FS
 
+func printUsage() {
+	fmt.Println("GTD - Getting Things Done Task Manager")
+	fmt.Println()
+	fmt.Println("Usage:")
+	fmt.Println("  gtd              Start GTD web server (default)")
+	fmt.Println("  gtd backup       Create an online backup archive (.zip) in ./backup")
+	fmt.Println("  gtd help         Show this help message")
+}
+
 func main() {
 	// データベースおよび画像保存先パス
 	dbPath := filepath.Join("data", "gtd.db")
 	imagesDir := filepath.Join("data", "images")
+	backupDir := "backup"
+
+	// CLI サブコマンド処理
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "backup":
+			fmt.Println("📦 Starting GTD online backup...")
+			res, err := backup.Run(dbPath, imagesDir, backupDir)
+			if err != nil {
+				log.Fatalf("❌ Backup failed: %v", err)
+			}
+			fmt.Println("✅ Backup completed successfully!")
+			fmt.Printf("   Archive: %s\n", res.ZipPath)
+			fmt.Printf("   Size:    %.2f KB\n", float64(res.FileSize)/1024)
+			fmt.Printf("   Images:  %d files\n", res.ImageCount)
+			fmt.Printf("   Time:    %v\n", res.Duration.Round(time.Millisecond))
+			return
+		case "help", "-h", "--help":
+			printUsage()
+			return
+		default:
+			fmt.Fprintf(os.Stderr, "Unknown command: %s\n\n", os.Args[1])
+			printUsage()
+			os.Exit(1)
+		}
+	}
 
 	// DB初期化（マイグレーション・初期コンテキストシード）
 	database, err := db.InitDB(dbPath)
