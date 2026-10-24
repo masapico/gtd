@@ -444,12 +444,25 @@ document.addEventListener('showToast', (e) => {
 
 // HTMX リクエスト失敗時のエラー通知 (HTMX 4: htmx:response:error, HTMX 1/2: htmx:responseError)
 function handleHtmxError(e) {
+  const err = e.detail?.error;
+  // 意図的なリクエスト中断（AbortError、Fetch is aborted、操作キャンセル等）はエラー表示しない
+  if (err) {
+    if (err.name === 'AbortError') return;
+    const errStr = String(err.message || err).toLowerCase();
+    if (errStr.includes('abort') || errStr.includes('cancel')) return;
+  }
+
   const ctx = e.detail?.ctx;
   const xhr = e.detail?.xhr;
   const status = ctx?.response?.status || xhr?.status || 0;
+  // ネットワーク未接続やブラウザキャンセルによる status 0 のエラーイベントも除外
+  if (status === 0 && (!ctx?.text && !xhr?.responseText)) {
+    return;
+  }
+
   let msg = ctx?.text || xhr?.responseText || '';
-  if (!msg && e.detail?.error) {
-    msg = e.detail.error.message || String(e.detail.error);
+  if (!msg && err) {
+    msg = err.message || String(err);
   }
   if (!msg) {
     msg = status ? `リクエストに失敗しました (${status})` : 'エラーが発生しました';
@@ -461,20 +474,56 @@ document.addEventListener('htmx:response:error', handleHtmxError);
 document.addEventListener('htmx:responseError', handleHtmxError);
 document.addEventListener('htmx:error', handleHtmxError);
 
-// 7. 中央ペインの hx-get 属性を動的に追従（ビュー切り替え後のリフレッシュ先を維持）
-function syncMainPaneUrl(e) {
-  const target = e.detail?.target;
-  if (target && target.id === 'main-content-pane') {
-    const cfg = e.detail.requestConfig;
-    const method = (cfg?.verb || cfg?.method || '').toLowerCase();
-    const path = cfg?.path;
-    if (method === 'get' && path && (path.startsWith('/partials/items') || path.startsWith('/review/step/'))) {
-      target.setAttribute('hx-get', path);
+// 7. 週次レビュー Step 1 / Step 3 のカード削除時カウント・表示自動更新
+function handleReviewCardSwapped() {
+  const step1List = document.getElementById('step1-items-list');
+  if (step1List) {
+    const remaining = step1List.querySelectorAll('.review-card').length;
+    const countEl = document.getElementById('step1-remaining-count');
+    if (countEl) countEl.textContent = remaining;
+
+    const badgeEl = document.getElementById('step1-tab-badge');
+    if (badgeEl) {
+      badgeEl.textContent = remaining;
+      if (remaining === 0) {
+        badgeEl.classList.remove('badge-alert');
+      }
+    }
+
+    if (remaining === 0) {
+      const headerEl = document.getElementById('step1-remaining-header');
+      if (headerEl) headerEl.style.display = 'none';
+      const zeroEl = document.getElementById('step1-zero-state');
+      if (zeroEl) zeroEl.style.display = 'block';
+    }
+  }
+
+  const step3List = document.getElementById('step3-items-list');
+  if (step3List) {
+    const remaining = step3List.querySelectorAll('.review-card').length;
+    const countEl = document.getElementById('step3-remaining-count');
+    if (countEl) countEl.textContent = remaining;
+
+    if (remaining === 0) {
+      const headerEl = document.getElementById('step3-remaining-header');
+      if (headerEl) headerEl.style.display = 'none';
+      const zeroEl = document.getElementById('step3-zero-state');
+      if (zeroEl) zeroEl.style.display = 'block';
+    }
+  }
+
+  // 週次レビュー仕分け時、サイドバーのViewsカウントを即時リフレッシュ
+  if (step1List || step3List) {
+    const sidebar = document.getElementById('sidebar-pane');
+    if (sidebar && window.htmx) {
+      htmx.ajax('GET', '/partials/sidebar', { target: '#sidebar-pane', swap: 'innerHTML' });
     }
   }
 }
-document.addEventListener('htmx:afterRequest', syncMainPaneUrl);
-document.addEventListener('htmx:after:request', syncMainPaneUrl);
+document.addEventListener('htmx:afterSwap', handleReviewCardSwapped);
+document.addEventListener('htmx:after:swap', handleReviewCardSwapped);
+document.addEventListener('htmx:afterRequest', handleReviewCardSwapped);
+document.addEventListener('htmx:after:request', handleReviewCardSwapped);
 
 // 8. プロジェクト名・詳細のインライン編集制御
 function toggleProjectEdit(show) {

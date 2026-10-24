@@ -1,3 +1,7 @@
+<div id="items-view-container" class="items-view-container"
+     hx-get="/partials/items?view={{.View}}{{if .CurrentProject}}&project_id={{.CurrentProject.ID}}{{end}}{{if .CurrentContext}}&context_id={{.CurrentContext.ID}}{{end}}{{if .ProjectStatus}}&project_status={{.ProjectStatus}}{{end}}{{if .Search}}&search={{.Search}}{{end}}"
+     hx-trigger="itemChanged from:document, listRefresh from:document, contextChanged from:document, projectChanged from:document"
+     hx-swap="outerHTML">
 <div class="content-header">
   <div class="content-title-row">
     {{if and (eq .View "project") .CurrentProject}}
@@ -642,13 +646,4 @@
     {{end}}
   </div>
 {{end}}
-
-<!-- 中央ペインの hx-get を現在の表示URLに同期（別画面への不意なリセット防止） -->
-<script>
-  (function() {
-    var pane = document.getElementById('main-content-pane');
-    if (pane) {
-      pane.setAttribute('hx-get', '/partials/items?view={{.View}}{{if .CurrentProject}}&project_id={{.CurrentProject.ID}}{{end}}{{if .CurrentContext}}&context_id={{.CurrentContext.ID}}{{end}}{{if .ProjectStatus}}&project_status={{.ProjectStatus}}{{end}}{{if .Search}}&search={{.Search}}{{end}}');
-    }
-  })();
-</script>
+</div>

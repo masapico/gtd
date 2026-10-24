@@ -1,6 +1,6 @@
 <div id="item-detail-content" data-item-id="{{.Item.ID}}" 
      hx-get="/items/{{.Item.ID}}/detail" 
-     hx-trigger="itemDetailRefresh from:body, contextChanged from:body" 
+     hx-trigger="itemDetailRefresh from:document, contextChanged from:document" 
      hx-target="#item-detail-pane" 
      hx-swap="innerHTML">
   <!-- Detail Header -->

@@ -94,7 +94,7 @@
      hx-target="#main-content-pane" 
      onclick="closeDetailPane()">
     <svg class="nav-icon" viewBox="0 0 24 24">
-      <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/>
+      <path d="M20 3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14l-4-4 1.41-1.41L10 13.17l6.59-6.59L18 8l-7 9zm4-7h4v2h-4v-2zm0 4h4v2h-4v-2zm0-8h4v2h-4V6z"/>
     </svg>
     <span class="nav-label">週次レビュー</span>
     {{if gt .Counts.StalledProjects 0}}
@@ -153,9 +153,17 @@
         </svg>
         <span class="nav-label">{{.Name}}</span>
         {{if eq .NextActionCount 0}}
-          <span class="badge badge-alert" title="Next Actionがありません">0</span>
+          {{if gt .TotalItemCount 0}}
+            <span class="badge badge-alert" title="タスク {{.TotalItemCount}}件（Next Action 0件）">0/{{.TotalItemCount}}</span>
+          {{else}}
+            <span class="badge badge-alert" title="Next Actionがありません（タスク0件）">0</span>
+          {{end}}
         {{else}}
-          <span class="badge">{{.NextActionCount}}</span>
+          {{if gt .TotalItemCount .NextActionCount}}
+            <span class="badge" title="Next Action {{.NextActionCount}}件 / 合計 {{.TotalItemCount}}件">{{.NextActionCount}}/{{.TotalItemCount}}</span>
+          {{else}}
+            <span class="badge" title="Next Action {{.NextActionCount}}件">{{.NextActionCount}}</span>
+          {{end}}
         {{end}}
       </a>
     {{end}}

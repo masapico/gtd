@@ -277,7 +277,7 @@ func (h *Handler) ToggleItemContext(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.Trigger(w, "itemChanged")
+	h.Trigger(w, "itemChanged", "contextChanged")
 	// 詳細ペインを再描画
 	h.GetItemDetail(w, r)
 }

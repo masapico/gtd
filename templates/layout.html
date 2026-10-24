@@ -12,9 +12,9 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
   <meta name="theme-color" content="#00639b">
 
-  <link rel="stylesheet" href="/static/style.css?v=13">
+  <link rel="stylesheet" href="/static/style.css?v=17">
   <script src="/static/htmx.min.js"></script>
-  <script src="/static/app.js?v=13"></script>
+  <script src="/static/app.js?v=17"></script>
 </head>
 <body hx-ext="morph">
 
@@ -161,12 +161,12 @@
   <!-- 3-Pane Body -->
   <div class="app-body">
     <!-- Left Pane: Navigation & Filters -->
-    <nav id="sidebar-pane" class="sidebar-pane" hx-get="/partials/sidebar" hx-trigger="itemChanged from:body, projectChanged from:body, contextChanged from:body" hx-swap="innerHTML">
+    <nav id="sidebar-pane" class="sidebar-pane" hx-get="/partials/sidebar" hx-trigger="itemChanged from:document, projectChanged from:document, contextChanged from:document" hx-swap="innerHTML">
       {{template "sidebar.html" .Sidebar}}
     </nav>
 
     <!-- Center Pane: Main Content List or Review Wizard -->
-    <main id="main-content-pane" class="main-content-pane" hx-get="/partials/items?view={{.ItemList.View}}{{if .ItemList.CurrentProject}}&project_id={{.ItemList.CurrentProject.ID}}{{end}}{{if .ItemList.CurrentContext}}&context_id={{.ItemList.CurrentContext.ID}}{{end}}" hx-trigger="itemChanged from:body, listRefresh from:body, contextChanged from:body, projectChanged from:body" hx-swap="innerHTML">
+    <main id="main-content-pane" class="main-content-pane">
       {{template "item_list.html" .ItemList}}
     </main>
 

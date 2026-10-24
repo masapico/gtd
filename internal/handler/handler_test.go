@@ -492,10 +492,21 @@ func TestWeeklyReviewStep1ItemTriage(t *testing.T) {
 		t.Fatalf("expected item title in Step 1, got: %s", step1HTML)
 	}
 
-	// Verify buttons have hx-patch and do NOT have conflicting hx-get on the same button
+	// Verify buttons have hx-patch, hx-target, and hx-swap="delete" for continuous in-place triage
 	patchAttr := fmt.Sprintf(`hx-patch="/items/%d/status"`, itemID)
 	if !strings.Contains(step1HTML, patchAttr) {
 		t.Errorf("expected %s in Step 1 buttons", patchAttr)
+	}
+	targetAttr := fmt.Sprintf(`hx-target="#review-card-%d"`, itemID)
+	if !strings.Contains(step1HTML, targetAttr) {
+		t.Errorf("expected %s in Step 1 buttons", targetAttr)
+	}
+	if !strings.Contains(step1HTML, `hx-swap="delete"`) {
+		t.Errorf("expected hx-swap=\"delete\" in Step 1 buttons")
+	}
+	cardIDAttr := fmt.Sprintf(`id="review-card-%d"`, itemID)
+	if !strings.Contains(step1HTML, cardIDAttr) {
+		t.Errorf("expected %s on item card in Step 1", cardIDAttr)
 	}
 	// Verify the buttons do NOT contain hx-get
 	for _, line := range strings.Split(step1HTML, "\n") {
@@ -533,6 +544,94 @@ func TestWeeklyReviewStep1ItemTriage(t *testing.T) {
 	}
 	if !strings.Contains(step1After, "Inbox Zero 達成！") {
 		t.Errorf("expected Inbox Zero in Step 1 after triaging all items, got: %s", step1After)
+	}
+}
+
+func TestWeeklyReviewStep1ContinuousTriageStructure(t *testing.T) {
+	h, mux, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// 1. Create two items in Inbox
+	it1 := &model.Item{Title: "Inbox Item 1", Status: "inbox"}
+	id1, err := db.CreateItem(h.DB, it1)
+	if err != nil {
+		t.Fatalf("CreateItem 1 failed: %v", err)
+	}
+	it2 := &model.Item{Title: "Inbox Item 2", Status: "inbox"}
+	id2, err := db.CreateItem(h.DB, it2)
+	if err != nil {
+		t.Fatalf("CreateItem 2 failed: %v", err)
+	}
+
+	// 2. Fetch Step 1
+	req := httptest.NewRequest("GET", "/review/step/1", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Step 1 request failed: %d", rec.Code)
+	}
+
+	html := rec.Body.String()
+
+	// Verify both cards have distinct review-card IDs
+	card1 := fmt.Sprintf(`id="review-card-%d"`, id1)
+	card2 := fmt.Sprintf(`id="review-card-%d"`, id2)
+	if !strings.Contains(html, card1) || !strings.Contains(html, card2) {
+		t.Errorf("expected both review cards in Step 1: %s, %s", card1, card2)
+	}
+
+	// Verify both have hx-swap="delete" targeting their respective cards
+	target1 := fmt.Sprintf(`hx-target="#review-card-%d"`, id1)
+	target2 := fmt.Sprintf(`hx-target="#review-card-%d"`, id2)
+	if !strings.Contains(html, target1) || !strings.Contains(html, target2) {
+		t.Errorf("expected hx-target for both items: %s, %s", target1, target2)
+	}
+
+	// Verify items list container and remaining counter elements exist
+	if !strings.Contains(html, `id="step1-items-list"`) {
+		t.Errorf("expected step1-items-list in Step 1")
+	}
+	if !strings.Contains(html, `id="step1-remaining-count"`) {
+		t.Errorf("expected step1-remaining-count in Step 1")
+	}
+	if !strings.Contains(html, `id="step1-tab-badge"`) {
+		t.Errorf("expected step1-tab-badge in Step 1")
+	}
+	if !strings.Contains(html, `id="step1-zero-state"`) {
+		t.Errorf("expected step1-zero-state in Step 1")
+	}
+
+	// 3. Verify item list partial has self-contained items-view-container
+	req = httptest.NewRequest("GET", "/partials/items?view=next", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("next view request failed: %d", rec.Code)
+	}
+	nextHTML := rec.Body.String()
+	if !strings.Contains(nextHTML, `id="items-view-container"`) {
+		t.Errorf("expected items-view-container in next view partial")
+	}
+	if !strings.Contains(nextHTML, `hx-get="/partials/items?view=next"`) {
+		t.Errorf("expected hx-get for next view in items-view-container")
+	}
+	if !strings.Contains(nextHTML, `hx-trigger="itemChanged from:document`) {
+		t.Errorf("expected itemChanged trigger in items-view-container")
+	}
+
+	// 4. Verify layout.html sets from:document on sidebar-pane and does NOT put itemChanged trigger on main-content-pane
+	req = httptest.NewRequest("GET", "/", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("layout request failed: %d", rec.Code)
+	}
+	layoutHTML := rec.Body.String()
+	if !strings.Contains(layoutHTML, `id="sidebar-pane" class="sidebar-pane" hx-get="/partials/sidebar" hx-trigger="itemChanged from:document`) {
+		t.Errorf("expected sidebar-pane to use from:document for reliable updates on deleted elements")
+	}
+	if strings.Contains(layoutHTML, `<main id="main-content-pane" class="main-content-pane" hx-trigger=`) {
+		t.Errorf("main-content-pane should NOT have hx-trigger attribute directly")
 	}
 }
 
@@ -746,9 +845,9 @@ func TestContextManagementViewAndCRUD(t *testing.T) {
 		t.Errorf("expected contextChanged trigger on delete, got %q", trigger)
 	}
 
-	// 6. Verify URL sync script is rendered in partials
-	if !strings.Contains(body, "pane.setAttribute('hx-get', '/partials/items?view=contexts')") {
-		t.Errorf("expected hx-get sync script in partials view, got: %s", body)
+	// 6. Verify URL attribute is rendered in partials container
+	if !strings.Contains(body, `hx-get="/partials/items?view=contexts"`) {
+		t.Errorf("expected hx-get attribute in partials view, got: %s", body)
 	}
 }
 
@@ -1396,6 +1495,107 @@ func TestLauncherHandlers(t *testing.T) {
 	deleteBody := rec.Body.String()
 	if strings.Contains(deleteBody, "更新テストメモ帳") {
 		t.Errorf("expected deleted launcher to disappear, got: %s", deleteBody)
+	}
+}
+
+func TestItemDetailProjectAssignmentAndSidebarCount(t *testing.T) {
+	h, mux, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// 1. プロジェクトを作成
+	pID, err := db.CreateProject(h.DB, &model.Project{
+		Name:   "新ポータル開発",
+		Status: "active",
+	})
+	if err != nil {
+		t.Fatalf("CreateProject failed: %v", err)
+	}
+
+	// 2. アイテムを作成 (Inbox)
+	itID, err := db.CreateItem(h.DB, &model.Item{
+		Title:  "要件定義ドラフト作成",
+		Status: "inbox",
+	})
+	if err != nil {
+		t.Fatalf("CreateItem failed: %v", err)
+	}
+
+	// 3. サイドバーの初期表示確認（タスク0件）
+	req := httptest.NewRequest("GET", "/partials/sidebar", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /partials/sidebar failed: %d", rec.Code)
+	}
+	sidebarHTML := rec.Body.String()
+	if !strings.Contains(sidebarHTML, "新ポータル開発") {
+		t.Fatalf("expected project '新ポータル開発' in sidebar")
+	}
+	if !strings.Contains(sidebarHTML, "Next Actionがありません（タスク0件）") {
+		t.Errorf("expected 0 items stalled tooltip in sidebar, got: %s", sidebarHTML)
+	}
+
+	// 4. アイテム詳細からプロジェクトに紐付け (PUT /items/{id})
+	form := url.Values{}
+	form.Set("title", "要件定義ドラフト作成")
+	form.Set("project_id", fmt.Sprintf("%d", pID))
+	form.Set("status", "inbox")
+	req = httptest.NewRequest("PUT", fmt.Sprintf("/items/%d", itID), strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PUT /items/{id} failed: %d", rec.Code)
+	}
+
+	// HX-Trigger に itemChanged が含まれること
+	trigger := rec.Header().Get("HX-Trigger")
+	if !strings.Contains(trigger, "itemChanged") {
+		t.Errorf("expected 'itemChanged' in HX-Trigger, got: %s", trigger)
+	}
+
+	// 5. サイドバーを再取得し、0/1 バッジ（Next Action 0件 / 合計 1件）が表示されること
+	req = httptest.NewRequest("GET", "/partials/sidebar", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /partials/sidebar failed: %d", rec.Code)
+	}
+	sidebarHTML = rec.Body.String()
+	if !strings.Contains(sidebarHTML, "0/1") {
+		t.Errorf("expected '0/1' badge for project in sidebar, got: %s", sidebarHTML)
+	}
+	if !strings.Contains(sidebarHTML, "タスク 1件（Next Action 0件）") {
+		t.Errorf("expected tooltip 'タスク 1件（Next Action 0件）', got: %s", sidebarHTML)
+	}
+
+	// 6. アイテムのステータスを next に変更 (PATCH /items/{id}/status)
+	statusForm := url.Values{}
+	statusForm.Set("status", "next")
+	req = httptest.NewRequest("PATCH", fmt.Sprintf("/items/%d/status", itID), strings.NewReader(statusForm.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PATCH /items/{id}/status failed: %d", rec.Code)
+	}
+	statusTrigger := rec.Header().Get("HX-Trigger")
+	if !strings.Contains(statusTrigger, "itemChanged") {
+		t.Errorf("expected 'itemChanged' in status trigger, got: %s", statusTrigger)
+	}
+
+	// 7. サイドバーを再取得し、Next Action 1件（通常バッジ "1"）となること
+	req = httptest.NewRequest("GET", "/partials/sidebar", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /partials/sidebar failed: %d", rec.Code)
+	}
+	sidebarHTML = rec.Body.String()
+	if !strings.Contains(sidebarHTML, "Next Action 1件") {
+		t.Errorf("expected 'Next Action 1件' in sidebar, got: %s", sidebarHTML)
 	}
 }
 

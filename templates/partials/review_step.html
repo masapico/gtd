@@ -3,7 +3,7 @@
   <div class="review-stepper">
     <a class="step-tab {{if eq .Step 1}}active{{end}}" hx-get="/review/step/1" hx-target="#main-content-pane" style="cursor: pointer;">
       <span>1. Get Clear</span>
-      <span class="badge {{if gt .Counts.Inbox 0}}badge-alert{{end}}">{{.Counts.Inbox}}</span>
+      <span id="step1-tab-badge" class="badge {{if gt .Counts.Inbox 0}}badge-alert{{end}}">{{.Counts.Inbox}}</span>
     </a>
     <a class="step-tab {{if eq .Step 2}}active{{end}}" hx-get="/review/step/2" hx-target="#main-content-pane" style="cursor: pointer;">
       <span>2. Get Current</span>
@@ -25,65 +25,74 @@
       </p>
     </div>
 
-    {{if eq (len .InboxItems) 0}}
-      <div class="review-card" style="text-align: center; padding: 40px 20px; background-color: #f0fdf4; border-color: #bbf7d0;">
-        <svg viewBox="0 0 24 24" width="48" height="48" fill="#16a34a" style="margin-bottom: 12px;">
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-        </svg>
-        <h3 style="color: #166534; font-size: 1.2rem; font-weight: 700;">Inbox Zero 達成！</h3>
-        <p style="color: #15803d; font-size: 0.9rem; margin-top: 6px;">未整理のアイテムはありません。次のステップへ進みましょう。</p>
-        <div style="margin-top: 20px;">
-          <button class="btn-small" style="padding: 10px 24px; font-size: 0.95rem; background-color: var(--md-sys-color-primary); color: #fff; font-weight: 600;" 
-                  hx-get="/review/step/2" 
-                  hx-target="#main-content-pane">
-            Step 2: プロジェクトの点検へ進む →
-          </button>
-        </div>
+    <!-- Inbox Zero Message (shown when 0 items initially or after clearing all items) -->
+    <div id="step1-zero-state" class="review-card" style="text-align: center; padding: 40px 20px; background-color: #f0fdf4; border-color: #bbf7d0; {{if gt (len .InboxItems) 0}}display: none;{{end}}">
+      <svg viewBox="0 0 24 24" width="48" height="48" fill="#16a34a" style="margin-bottom: 12px;">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+      </svg>
+      <h3 style="color: #166534; font-size: 1.2rem; font-weight: 700;">Inbox Zero 達成！</h3>
+      <p style="color: #15803d; font-size: 0.9rem; margin-top: 6px;">未整理のアイテムはありません。次のステップへ進みましょう。</p>
+      <div style="margin-top: 20px;">
+        <button class="btn-small" style="padding: 10px 24px; font-size: 0.95rem; background-color: var(--md-sys-color-primary); color: #fff; font-weight: 600;" 
+                hx-get="/review/step/2" 
+                hx-target="#main-content-pane">
+          Step 2: プロジェクトの点検へ進む →
+        </button>
       </div>
-    {{else}}
-      <div style="font-size: 0.85rem; color: var(--md-sys-color-outline); margin-bottom: 12px;">
-        残り <strong>{{len .InboxItems}}</strong> 件
+    </div>
+
+    {{if gt (len .InboxItems) 0}}
+      <div id="step1-remaining-header" style="font-size: 0.85rem; color: var(--md-sys-color-outline); margin-bottom: 12px;">
+        残り <strong id="step1-remaining-count">{{len .InboxItems}}</strong> 件
       </div>
 
-      {{range .InboxItems}}
-        <div class="review-card">
-          <div style="font-size: 1.05rem; font-weight: 600; margin-bottom: 6px;">{{.Title}}</div>
-          {{if .Body}}
-            <div style="font-size: 0.85rem; color: var(--md-sys-color-on-surface-variant); background: var(--md-sys-color-surface-container); padding: 8px 12px; border-radius: var(--md-shape-sm); margin-bottom: 12px; white-space: pre-wrap;">{{.Body}}</div>
-          {{end}}
+      <div id="step1-items-list">
+        {{range .InboxItems}}
+          <div class="review-card" id="review-card-{{.ID}}">
+            <div style="font-size: 1.05rem; font-weight: 600; margin-bottom: 6px;">{{.Title}}</div>
+            {{if .Body}}
+              <div style="font-size: 0.85rem; color: var(--md-sys-color-on-surface-variant); background: var(--md-sys-color-surface-container); padding: 8px 12px; border-radius: var(--md-shape-sm); margin-bottom: 12px; white-space: pre-wrap;">{{.Body}}</div>
+            {{end}}
 
-          <!-- Triage Actions -->
-          <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-            <button class="btn-small" 
-                    hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "next"}' hx-swap="none" 
-                    style="background-color: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); font-weight: 600;">
-              Next Action (今やる)
-            </button>
-            <button class="btn-small" 
-                    hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "waiting"}' hx-swap="none">
-              Waiting (連絡待ち)
-            </button>
-            <button class="btn-small" 
-                    hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "someday"}' hx-swap="none">
-              Someday (いつか)
-            </button>
-            <button class="btn-small" 
-                    hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "reference"}' hx-swap="none">
-              Reference (資料メモ)
-            </button>
-            <button class="btn-small" 
-                    hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "done"}' hx-swap="none">
-              Done (完了)
-            </button>
-            <button class="btn-small" 
-                    hx-delete="/items/{{.ID}}" hx-swap="none" 
-                    hx-confirm="このアイテムを完全に削除しますか？"
-                    style="color: var(--md-sys-color-error);">
-              削除
-            </button>
+            <!-- Triage Actions -->
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+              <button class="btn-small" 
+                      hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "next"}' 
+                      hx-target="#review-card-{{.ID}}" hx-swap="delete" 
+                      style="background-color: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); font-weight: 600;">
+                Next Action (今やる)
+              </button>
+              <button class="btn-small" 
+                      hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "waiting"}' 
+                      hx-target="#review-card-{{.ID}}" hx-swap="delete">
+                Waiting (連絡待ち)
+              </button>
+              <button class="btn-small" 
+                      hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "someday"}' 
+                      hx-target="#review-card-{{.ID}}" hx-swap="delete">
+                Someday (いつか)
+              </button>
+              <button class="btn-small" 
+                      hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "reference"}' 
+                      hx-target="#review-card-{{.ID}}" hx-swap="delete">
+                Reference (資料メモ)
+              </button>
+              <button class="btn-small" 
+                      hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "done"}' 
+                      hx-target="#review-card-{{.ID}}" hx-swap="delete">
+                Done (完了)
+              </button>
+              <button class="btn-small" 
+                      hx-delete="/items/{{.ID}}" 
+                      hx-target="#review-card-{{.ID}}" hx-swap="delete" 
+                      hx-confirm="このアイテムを完全に削除しますか？"
+                      style="color: var(--md-sys-color-error);">
+                削除
+              </button>
+            </div>
           </div>
-        </div>
-      {{end}}
+        {{end}}
+      </div>
     {{end}}
   {{end}}
 
@@ -171,73 +180,80 @@
       </p>
     </div>
 
-    {{if eq (len .StaleItems) 0}}
-      <div class="review-card" style="text-align: center; padding: 40px 20px;">
-        <svg viewBox="0 0 24 24" width="48" height="48" fill="#16a34a" style="margin-bottom: 12px;">
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-        </svg>
-        <h3 style="font-size: 1.2rem; font-weight: 700;">棚卸しが必要なアイテムはありません！</h3>
-        <p style="font-size: 0.9rem; color: var(--md-sys-color-on-surface-variant); margin-top: 6px;">Waiting / Someday はすべて最新状態に保たれています。</p>
-        <div style="margin-top: 24px;">
-          <button class="btn-small" style="padding: 12px 28px; font-size: 1rem; background-color: var(--md-sys-color-primary); color: #fff; font-weight: 600;" 
-                  hx-get="/partials/items?view=next" 
-                  hx-target="#main-content-pane">
-            週次レビュー完了！ Next Actions を開く
-          </button>
-        </div>
+    <!-- Stale Items Zero State -->
+    <div id="step3-zero-state" class="review-card" style="text-align: center; padding: 40px 20px; {{if gt (len .StaleItems) 0}}display: none;{{end}}">
+      <svg viewBox="0 0 24 24" width="48" height="48" fill="#16a34a" style="margin-bottom: 12px;">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+      </svg>
+      <h3 style="font-size: 1.2rem; font-weight: 700;">棚卸しが必要なアイテムはありません！</h3>
+      <p style="font-size: 0.9rem; color: var(--md-sys-color-on-surface-variant); margin-top: 6px;">Waiting / Someday はすべて最新状態に保たれています。</p>
+      <div style="margin-top: 24px;">
+        <button class="btn-small" style="padding: 12px 28px; font-size: 1rem; background-color: var(--md-sys-color-primary); color: #fff; font-weight: 600;" 
+                hx-get="/partials/items?view=next" 
+                hx-target="#main-content-pane">
+          週次レビュー完了！ Next Actions を開く
+        </button>
       </div>
-    {{else}}
-      <div style="font-size: 0.85rem; color: var(--md-sys-color-outline); margin-bottom: 12px;">
-        棚卸し対象: <strong>{{len .StaleItems}}</strong> 件
+    </div>
+
+    {{if gt (len .StaleItems) 0}}
+      <div id="step3-remaining-header" style="font-size: 0.85rem; color: var(--md-sys-color-outline); margin-bottom: 12px;">
+        棚卸し対象: <strong id="step3-remaining-count">{{len .StaleItems}}</strong> 件
       </div>
 
-      {{range .StaleItems}}
-        <div class="review-card">
-          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
-            <div>
-              <span class="meta-tag {{if eq .Status "waiting"}}tag-repeat{{else}}tag-project{{end}}" style="margin-bottom: 4px;">
-                {{.StatusLabel}}
-              </span>
-              <div style="font-size: 1.05rem; font-weight: 600;">{{.Title}}</div>
-              {{if .ProjectName}}
-                <div style="font-size: 0.8rem; color: var(--md-sys-color-outline); margin-top: 2px; display: inline-flex; align-items: center; gap: 4px;">
-                  <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
-                    <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
-                  </svg>
-                  <span>{{.ProjectName}}</span>
-                </div>
-              {{end}}
-              {{if .Body}}
-                <div style="font-size: 0.85rem; margin-top: 6px; color: var(--md-sys-color-on-surface-variant); white-space: pre-wrap;">{{.Body}}</div>
-              {{end}}
-            </div>
+      <div id="step3-items-list">
+        {{range .StaleItems}}
+          <div class="review-card" id="stale-card-{{.ID}}">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
+              <div>
+                <span class="meta-tag {{if eq .Status "waiting"}}tag-repeat{{else}}tag-project{{end}}" style="margin-bottom: 4px;">
+                  {{.StatusLabel}}
+                </span>
+                <div style="font-size: 1.05rem; font-weight: 600;">{{.Title}}</div>
+                {{if .ProjectName}}
+                  <div style="font-size: 0.8rem; color: var(--md-sys-color-outline); margin-top: 2px; display: inline-flex; align-items: center; gap: 4px;">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
+                      <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+                    </svg>
+                    <span>{{.ProjectName}}</span>
+                  </div>
+                {{end}}
+                {{if .Body}}
+                  <div style="font-size: 0.85rem; margin-top: 6px; color: var(--md-sys-color-on-surface-variant); white-space: pre-wrap;">{{.Body}}</div>
+                {{end}}
+              </div>
 
-            <!-- Triage Actions -->
-            <div style="display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap;">
-              <button class="btn-small" 
-                      hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "next"}' hx-swap="none" 
-                      style="background-color: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); font-weight: 600;">
-                今週やる (Next)
-              </button>
-              <button class="btn-small" 
-                      hx-post="/review/items/{{.ID}}/reviewed" hx-swap="none" 
-                      title="引き続き待機または保留として点検日を更新">
-                引き続き保留
-              </button>
-              <button class="btn-small" 
-                      hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "done"}' hx-swap="none">
-                完了
-              </button>
-              <button class="btn-small" 
-                      hx-delete="/items/{{.ID}}" hx-swap="none" 
-                      hx-confirm="このアイテムを完全に削除しますか？"
-                      style="color: var(--md-sys-color-error);">
-                削除
-              </button>
+              <!-- Triage Actions -->
+              <div style="display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap;">
+                <button class="btn-small" 
+                        hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "next"}' 
+                        hx-target="#stale-card-{{.ID}}" hx-swap="delete" 
+                        style="background-color: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); font-weight: 600;">
+                  今週やる (Next)
+                </button>
+                <button class="btn-small" 
+                        hx-post="/review/items/{{.ID}}/reviewed" 
+                        hx-target="#stale-card-{{.ID}}" hx-swap="delete" 
+                        title="引き続き待機または保留として点検日を更新">
+                  引き続き保留
+                </button>
+                <button class="btn-small" 
+                        hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "done"}' 
+                        hx-target="#stale-card-{{.ID}}" hx-swap="delete">
+                  完了
+                </button>
+                <button class="btn-small" 
+                        hx-delete="/items/{{.ID}}" 
+                        hx-target="#stale-card-{{.ID}}" hx-swap="delete" 
+                        hx-confirm="このアイテムを完全に削除しますか？"
+                        style="color: var(--md-sys-color-error);">
+                  削除
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      {{end}}
+        {{end}}
+      </div>
 
       <div style="text-align: right; margin-top: 24px;">
         <button class="btn-small" style="padding: 12px 28px; font-size: 1rem; background-color: var(--md-sys-color-primary); color: #fff; font-weight: 600;" 
