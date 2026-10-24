@@ -51,7 +51,41 @@ go run main.go backup
 - **ZIPアーカイブ作成**: データベース（`data/gtd.db`）と貼り付け画像フォルダ（`data/images/`）をひとまとめにし、`backup/YYYYMMDDHHMMSS_gtd.zip` として保存します。
 - **実行結果の確認**: 処理時間、ZIPファイルサイズ、含まれる画像ファイル数が出力されます。
 
-### 3. ヘルプ表示
+### 3. バージョン情報の確認
+```bash
+./gtd version
+```
+
+### 4. ヘルプ表示
 ```bash
 ./gtd help
+```
+
+---
+
+## 配布用リリースパッケージの作成
+
+各プラットフォーム（macOS, Windows, Linux）向けのシングルバイナリおよび配布用 `.zip` を一括生成します。
+
+```bash
+# 全プラットフォーム向けパッケージを一括作成
+./release -version v1.0.0
+
+# または go run から直接実行
+go run ./cmd/release -version v1.0.0
+```
+
+### 生成されるファイル (`dist/`)
+- `dist/gtd_<version>_darwin_arm64.zip` (macOS Apple Silicon)
+- `dist/gtd_<version>_darwin_amd64.zip` (macOS Intel)
+- `dist/gtd_<version>_windows_amd64.zip` (Windows 64-bit)
+- `dist/gtd_<version>_windows_arm64.zip` (Windows ARM64)
+- `dist/gtd_<version>_linux_amd64.zip` (Linux 64-bit)
+- `dist/gtd_<version>_linux_arm64.zip` (Linux ARM64)
+- `dist/checksums.txt` (SHA256 チェックサム一覧)
+
+各 ZIP アーカイブには、実行可能バイナリ（Unix系は実行権限保持）と `README.md` が同梱されます。
+特定OSやアーキテクチャのみビルドしたい場合は `-os` / `-arch` オプションが利用可能です：
+```bash
+./release -version v1.0.0 -os windows -arch amd64
 ```

@@ -22,12 +22,19 @@ var staticFS embed.FS
 //go:embed templates/*
 var templateFS embed.FS
 
+// Version is the application version, injected at build time via -ldflags "-X main.Version=..."
+var Version = "dev"
+
 func printUsage() {
 	fmt.Println("GTD - Getting Things Done Task Manager")
+	if Version != "" {
+		fmt.Printf("Version: %s\n", Version)
+	}
 	fmt.Println()
 	fmt.Println("Usage:")
 	fmt.Println("  gtd              Start GTD web server (default)")
 	fmt.Println("  gtd backup       Create an online backup archive (.zip) in ./backup")
+	fmt.Println("  gtd version      Show version information")
 	fmt.Println("  gtd help         Show this help message")
 }
 
@@ -51,6 +58,9 @@ func main() {
 			fmt.Printf("   Size:    %.2f KB\n", float64(res.FileSize)/1024)
 			fmt.Printf("   Images:  %d files\n", res.ImageCount)
 			fmt.Printf("   Time:    %v\n", res.Duration.Round(time.Millisecond))
+			return
+		case "version", "-v", "--version":
+			fmt.Printf("GTD %s\n", Version)
 			return
 		case "help", "-h", "--help":
 			printUsage()
@@ -155,7 +165,7 @@ func main() {
 	}
 
 	addr := host + ":" + port
-	fmt.Printf("\n✅GTD is running at http://%s:%s\n\n", host, port)
+	fmt.Printf("\n✅ GTD (%s) is running at http://%s:%s\n\n", Version, host, port)
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}

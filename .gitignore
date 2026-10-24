@@ -7,7 +7,11 @@
 *.dll
 *.so
 *.dylib
-gtd
+/gtd
+/release
+/release.exe
+/dist/
+release.sh
 
 # Application data
 data/
