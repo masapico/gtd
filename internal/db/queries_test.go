@@ -214,3 +214,110 @@ func TestContextCRUD(t *testing.T) {
 	}
 }
 
+func TestStartDateAndScheduledView(t *testing.T) {
+	dbPath := setupTestDB(t)
+	db, err := InitDB(dbPath)
+	if err != nil {
+		t.Fatalf("InitDB failed: %v", err)
+	}
+	defer db.Close()
+
+	today := time.Now().Format("2006-01-02")
+	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
+
+	// 1. 未来の開始日を持つ Next Action アイテム（Tickler / 待機中）
+	futureItem := &model.Item{
+		Title:     "Future action",
+		Status:    "next",
+		StartDate: &tomorrow,
+	}
+	fID, err := CreateItem(db, futureItem)
+	if err != nil {
+		t.Fatalf("CreateItem failed: %v", err)
+	}
+
+	// 2. 今日開始の Next Action アイテム
+	todayItem := &model.Item{
+		Title:     "Today action",
+		Status:    "next",
+		StartDate: &today,
+	}
+	_, err = CreateItem(db, todayItem)
+	if err != nil {
+		t.Fatalf("CreateItem failed: %v", err)
+	}
+
+	// 3. 期限切れ（昨日）のタスク
+	overdueItem := &model.Item{
+		Title:   "Overdue task",
+		Status:  "next",
+		DueDate: &yesterday,
+	}
+	_, err = CreateItem(db, overdueItem)
+	if err != nil {
+		t.Fatalf("CreateItem failed: %v", err)
+	}
+
+	// Next Actions リストの検証: 未来のタスクは除外され、Today action と Overdue task の2件のみ取得されること
+	nextItems, err := GetItems(db, model.ItemFilter{View: "next"})
+	if err != nil {
+		t.Fatalf("GetItems next failed: %v", err)
+	}
+	if len(nextItems) != 2 {
+		t.Errorf("expected 2 next actions (excluding deferred), got %d", len(nextItems))
+	}
+	for _, it := range nextItems {
+		if it.ID == fID {
+			t.Errorf("futureItem should not appear in next actions list")
+		}
+	}
+
+	// サイドバーカウントの検証
+	counts, err := GetSidebarCounts(db)
+	if err != nil {
+		t.Fatalf("GetSidebarCounts failed: %v", err)
+	}
+	if counts.Next != 2 {
+		t.Errorf("expected counts.Next = 2, got %d", counts.Next)
+	}
+	if counts.ScheduledOverdueToday != 1 {
+		t.Errorf("expected counts.ScheduledOverdueToday = 1, got %d", counts.ScheduledOverdueToday)
+	}
+	// ScheduledTotal: futureItem(未来開始) + overdueItem(期限付き) = 2
+	if counts.ScheduledTotal != 2 {
+		t.Errorf("expected counts.ScheduledTotal = 2, got %d", counts.ScheduledTotal)
+	}
+
+	// Scheduled ビューの取得検証
+	schedItems, err := GetItems(db, model.ItemFilter{View: "scheduled"})
+	if err != nil {
+		t.Fatalf("GetItems scheduled failed: %v", err)
+	}
+	if len(schedItems) != 2 {
+		t.Errorf("expected 2 scheduled items, got %d", len(schedItems))
+	}
+
+	// GetItemByID と UpdateItem での StartDate 保存・更新
+	retrieved, err := GetItemByID(db, fID)
+	if err != nil {
+		t.Fatalf("GetItemByID failed: %v", err)
+	}
+	if retrieved.StartDate == nil || *retrieved.StartDate != tomorrow {
+		t.Errorf("expected StartDate %s, got %v", tomorrow, retrieved.StartDate)
+	}
+
+	// 更新
+	retrieved.StartDate = &today
+	if err := UpdateItem(db, retrieved); err != nil {
+		t.Fatalf("UpdateItem failed: %v", err)
+	}
+	updated, err := GetItemByID(db, fID)
+	if err != nil {
+		t.Fatalf("GetItemByID after update failed: %v", err)
+	}
+	if updated.StartDate == nil || *updated.StartDate != today {
+		t.Errorf("expected updated StartDate %s, got %v", today, updated.StartDate)
+	}
+}
+

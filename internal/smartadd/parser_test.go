@@ -14,6 +14,7 @@ func TestParse(t *testing.T) {
 		input        string
 		wantTitle    string
 		wantContexts []string
+		wantStartDate *string
 		wantDueDate  *string
 	}{
 		{
@@ -21,6 +22,7 @@ func TestParse(t *testing.T) {
 			input:        "買い物に行く",
 			wantTitle:    "買い物に行く",
 			wantContexts: nil,
+			wantStartDate: nil,
 			wantDueDate:  nil,
 		},
 		{
@@ -28,6 +30,7 @@ func TestParse(t *testing.T) {
 			input:        "報告書作成 #PC",
 			wantTitle:    "報告書作成",
 			wantContexts: []string{"#PC"},
+			wantStartDate: nil,
 			wantDueDate:  nil,
 		},
 		{
@@ -35,6 +38,7 @@ func TestParse(t *testing.T) {
 			input:        "メール返信 #PC #5分 ^today",
 			wantTitle:    "メール返信",
 			wantContexts: []string{"#PC", "#5分"},
+			wantStartDate: nil,
 			wantDueDate:  strPtr("2026-10-24"),
 		},
 		{
@@ -42,6 +46,7 @@ func TestParse(t *testing.T) {
 			input:        "急ぎの確認 ＃会議 ^今日",
 			wantTitle:    "急ぎの確認",
 			wantContexts: []string{"#会議"},
+			wantStartDate: nil,
 			wantDueDate:  strPtr("2026-10-24"),
 		},
 		{
@@ -49,6 +54,7 @@ func TestParse(t *testing.T) {
 			input:        "プレゼン準備 #仕事 ^tomorrow",
 			wantTitle:    "プレゼン準備",
 			wantContexts: []string{"#仕事"},
+			wantStartDate: nil,
 			wantDueDate:  strPtr("2026-10-25"),
 		},
 		{
@@ -56,6 +62,7 @@ func TestParse(t *testing.T) {
 			input:        "定例会議の準備 ^mon #会議",
 			wantTitle:    "定例会議の準備",
 			wantContexts: []string{"#会議"},
+			wantStartDate: nil,
 			wantDueDate:  strPtr("2026-10-26"),
 		},
 		{
@@ -63,6 +70,7 @@ func TestParse(t *testing.T) {
 			input:        "締め切り書類提出 ^金 #連絡",
 			wantTitle:    "締め切り書類提出",
 			wantContexts: []string{"#連絡"},
+			wantStartDate: nil,
 			wantDueDate:  strPtr("2026-10-30"),
 		},
 		{
@@ -70,6 +78,7 @@ func TestParse(t *testing.T) {
 			input:        "プロジェクトマイルストーン ^2026-11-15 #重要",
 			wantTitle:    "プロジェクトマイルストーン",
 			wantContexts: []string{"#重要"},
+			wantStartDate: nil,
 			wantDueDate:  strPtr("2026-11-15"),
 		},
 		{
@@ -77,6 +86,7 @@ func TestParse(t *testing.T) {
 			input:        "年末調整提出 ^2026/12/31",
 			wantTitle:    "年末調整提出",
 			wantContexts: nil,
+			wantStartDate: nil,
 			wantDueDate:  strPtr("2026-12-31"),
 		},
 		{
@@ -84,13 +94,31 @@ func TestParse(t *testing.T) {
 			input:        "フォローアップ連絡 ^+3d #電話",
 			wantTitle:    "フォローアップ連絡",
 			wantContexts: []string{"#電話"},
+			wantStartDate: nil,
 			wantDueDate:  strPtr("2026-10-27"),
+		},
+		{
+			name:         "Start date ~明日 and Due date ^金",
+			input:        "企画立案 ~明日 ^金 #PC",
+			wantTitle:    "企画立案",
+			wantContexts: []string{"#PC"},
+			wantStartDate: strPtr("2026-10-25"),
+			wantDueDate:  strPtr("2026-10-30"),
+		},
+		{
+			name:         "Full-width tilde 〜2026-11-01",
+			input:        "契約更新 〜2026-11-01",
+			wantTitle:    "契約更新",
+			wantContexts: nil,
+			wantStartDate: strPtr("2026-11-01"),
+			wantDueDate:  nil,
 		},
 		{
 			name:         "Ignored @ symbol for future expansion",
 			input:        "連絡する @山田太郎 #連絡 ^today",
 			wantTitle:    "連絡する @山田太郎",
 			wantContexts: []string{"#連絡"},
+			wantStartDate: nil,
 			wantDueDate:  strPtr("2026-10-24"),
 		},
 	}
@@ -108,6 +136,12 @@ func TestParse(t *testing.T) {
 				if got.Contexts[i] != tt.wantContexts[i] {
 					t.Errorf("Contexts[%d] = %q, want %q", i, got.Contexts[i], tt.wantContexts[i])
 				}
+			}
+			if (got.StartDate == nil && tt.wantStartDate != nil) || (got.StartDate != nil && tt.wantStartDate == nil) {
+				t.Fatalf("StartDate = %v, want %v", got.StartDate, tt.wantStartDate)
+			}
+			if got.StartDate != nil && tt.wantStartDate != nil && *got.StartDate != *tt.wantStartDate {
+				t.Errorf("StartDate = %q, want %q", *got.StartDate, *tt.wantStartDate)
 			}
 			if (got.DueDate == nil && tt.wantDueDate != nil) || (got.DueDate != nil && tt.wantDueDate == nil) {
 				t.Fatalf("DueDate = %v, want %v", got.DueDate, tt.wantDueDate)

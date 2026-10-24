@@ -109,6 +109,35 @@ func GetSidebarCounts(db *sql.DB) (model.SidebarCounts, error) {
 		}
 	}
 
+	// Next Action件数は、開始日が未来（Tickler / 待機中）のものを除いた実効タスク数をカウント
+	_ = db.QueryRow(`
+		SELECT COUNT(*) 
+		FROM items 
+		WHERE status = 'next' 
+		  AND (start_date IS NULL OR start_date = '' OR start_date <= date('now', 'localtime'))
+	`).Scan(&counts.Next)
+
+	// Scheduled (期限・予定): 期限超過または今日期限のタスク件数（赤色バッジ用）
+	_ = db.QueryRow(`
+		SELECT COUNT(*) 
+		FROM items 
+		WHERE status != 'done' 
+		  AND due_date IS NOT NULL AND due_date != '' 
+		  AND due_date <= date('now', 'localtime')
+	`).Scan(&counts.ScheduledOverdueToday)
+
+	// Scheduled (期限・予定): 期限付きまたは未来開始待ちの全タスク件数
+	_ = db.QueryRow(`
+		SELECT COUNT(*) 
+		FROM items 
+		WHERE status != 'done' 
+		  AND (
+		    (due_date IS NOT NULL AND due_date != '') 
+		    OR 
+		    (start_date IS NOT NULL AND start_date != '' AND start_date > date('now', 'localtime'))
+		  )
+	`).Scan(&counts.ScheduledTotal)
+
 	// プロジェクト総数（active, done, someday）
 	_ = db.QueryRow(`SELECT COUNT(*) FROM projects WHERE status = 'active'`).Scan(&counts.Projects)
 	_ = db.QueryRow(`SELECT COUNT(*) FROM projects WHERE status = 'done'`).Scan(&counts.DoneProjects)
@@ -119,7 +148,7 @@ func GetSidebarCounts(db *sql.DB) (model.SidebarCounts, error) {
 		SELECT COUNT(*) 
 		FROM projects p 
 		WHERE p.status = 'active' 
-		  AND (SELECT COUNT(*) FROM items i WHERE i.project_id = p.id AND i.status = 'next') = 0
+		  AND (SELECT COUNT(*) FROM items i WHERE i.project_id = p.id AND i.status = 'next' AND (i.start_date IS NULL OR i.start_date = '' OR i.start_date <= date('now', 'localtime'))) = 0
 	`).Scan(&counts.StalledProjects)
 
 	return counts, nil
@@ -137,6 +166,14 @@ func GetItems(db *sql.DB, filter model.ItemFilter) ([]model.Item, error) {
 				conditions = append(conditions, "i.project_id = ?")
 				args = append(args, *filter.ProjectID)
 			}
+		} else if filter.View == "next" {
+			conditions = append(conditions, "i.status = 'next'")
+			// 開始日が未来のタスクは Next Actions リストからは非表示（指定日に自動浮上）
+			conditions = append(conditions, "(i.start_date IS NULL OR i.start_date = '' OR i.start_date <= date('now', 'localtime'))")
+		} else if filter.View == "scheduled" {
+			// 期限・予定ビュー: 未完了かつ（期日がある、または未来の開始日待ち）
+			conditions = append(conditions, "i.status != 'done'")
+			conditions = append(conditions, "((i.due_date IS NOT NULL AND i.due_date != '') OR (i.start_date IS NOT NULL AND i.start_date != '' AND i.start_date > date('now', 'localtime')))")
 		} else {
 			conditions = append(conditions, "i.status = ?")
 			args = append(args, filter.View)
@@ -166,6 +203,9 @@ func GetItems(db *sql.DB, filter model.ItemFilter) ([]model.Item, error) {
 		orderBy = "i.created_at ASC"
 	case "next":
 		orderBy = "CASE WHEN i.due_date IS NULL OR i.due_date = '' THEN 1 ELSE 0 END, i.due_date ASC, i.created_at DESC"
+	case "scheduled":
+		// 期日昇順（期限切れ→今日→未来）、期日なしの開始日待ちタスクは後方で開始日昇順
+		orderBy = "CASE WHEN i.due_date IS NOT NULL AND i.due_date != '' THEN 0 ELSE 1 END, i.due_date ASC, i.start_date ASC, i.created_at ASC"
 	case "done":
 		orderBy = "i.updated_at DESC"
 	case "project":
@@ -176,7 +216,7 @@ func GetItems(db *sql.DB, filter model.ItemFilter) ([]model.Item, error) {
 		SELECT 
 			i.id, i.project_id, COALESCE(p.name, '') AS project_name, 
 			i.title, COALESCE(i.body, '') AS body, i.status, 
-			i.due_date, i.recurrence, i.last_reviewed_at, i.created_at, i.updated_at,
+			i.start_date, i.due_date, i.recurrence, i.last_reviewed_at, i.created_at, i.updated_at,
 			(SELECT COUNT(*) FROM attachments a WHERE a.item_id = i.id) AS attach_count
 		FROM items i
 		LEFT JOIN projects p ON i.project_id = p.id
@@ -194,13 +234,14 @@ func GetItems(db *sql.DB, filter model.ItemFilter) ([]model.Item, error) {
 	for rows.Next() {
 		var it model.Item
 		var pID sql.NullInt64
+		var sDate sql.NullString
 		var dDate sql.NullString
 		var lRev sql.NullTime
 
 		err := rows.Scan(
 			&it.ID, &pID, &it.ProjectName,
 			&it.Title, &it.Body, &it.Status,
-			&dDate, &it.Recurrence, &lRev,
+			&sDate, &dDate, &it.Recurrence, &lRev,
 			&it.CreatedAt, &it.UpdatedAt,
 			&it.AttachCount,
 		)
@@ -210,6 +251,10 @@ func GetItems(db *sql.DB, filter model.ItemFilter) ([]model.Item, error) {
 
 		if pID.Valid {
 			it.ProjectID = &pID.Int64
+		}
+		if sDate.Valid && sDate.String != "" {
+			cleanDate := strings.Split(sDate.String, "T")[0]
+			it.StartDate = &cleanDate
 		}
 		if dDate.Valid && dDate.String != "" {
 			cleanDate := strings.Split(dDate.String, "T")[0]
@@ -253,7 +298,7 @@ func GetItemByID(db *sql.DB, id int64) (*model.Item, error) {
 		SELECT 
 			i.id, i.project_id, COALESCE(p.name, '') AS project_name, 
 			i.title, COALESCE(i.body, '') AS body, i.status, 
-			i.due_date, i.recurrence, i.last_reviewed_at, i.created_at, i.updated_at
+			i.start_date, i.due_date, i.recurrence, i.last_reviewed_at, i.created_at, i.updated_at
 		FROM items i
 		LEFT JOIN projects p ON i.project_id = p.id
 		WHERE i.id = ?
@@ -261,13 +306,14 @@ func GetItemByID(db *sql.DB, id int64) (*model.Item, error) {
 
 	var it model.Item
 	var pID sql.NullInt64
+	var sDate sql.NullString
 	var dDate sql.NullString
 	var lRev sql.NullTime
 
 	err := row.Scan(
 		&it.ID, &pID, &it.ProjectName,
 		&it.Title, &it.Body, &it.Status,
-		&dDate, &it.Recurrence, &lRev,
+		&sDate, &dDate, &it.Recurrence, &lRev,
 		&it.CreatedAt, &it.UpdatedAt,
 	)
 	if err != nil {
@@ -276,6 +322,10 @@ func GetItemByID(db *sql.DB, id int64) (*model.Item, error) {
 
 	if pID.Valid {
 		it.ProjectID = &pID.Int64
+	}
+	if sDate.Valid && sDate.String != "" {
+		cleanDate := strings.Split(sDate.String, "T")[0]
+		it.StartDate = &cleanDate
 	}
 	if dDate.Valid && dDate.String != "" {
 		cleanDate := strings.Split(dDate.String, "T")[0]
@@ -334,9 +384,9 @@ func CreateItem(db *sql.DB, item *model.Item) (int64, error) {
 	}
 
 	res, err := db.Exec(`
-		INSERT INTO items (project_id, title, body, status, due_date, recurrence)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, item.ProjectID, item.Title, item.Body, item.Status, item.DueDate, item.Recurrence)
+		INSERT INTO items (project_id, title, body, status, start_date, due_date, recurrence)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, item.ProjectID, item.Title, item.Body, item.Status, item.StartDate, item.DueDate, item.Recurrence)
 	if err != nil {
 		return 0, err
 	}
@@ -359,9 +409,9 @@ func CreateItem(db *sql.DB, item *model.Item) (int64, error) {
 func UpdateItem(db *sql.DB, item *model.Item) error {
 	_, err := db.Exec(`
 		UPDATE items
-		SET project_id = ?, title = ?, body = ?, status = ?, due_date = ?, recurrence = ?, updated_at = CURRENT_TIMESTAMP
+		SET project_id = ?, title = ?, body = ?, status = ?, start_date = ?, due_date = ?, recurrence = ?, updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
-	`, item.ProjectID, item.Title, item.Body, item.Status, item.DueDate, item.Recurrence, item.ID)
+	`, item.ProjectID, item.Title, item.Body, item.Status, item.StartDate, item.DueDate, item.Recurrence, item.ID)
 	return err
 }
 
@@ -380,12 +430,19 @@ func UpdateItemStatus(db *sql.DB, id int64, newStatus string) (*model.Item, erro
 		}
 		nextDue := CalculateNextDueDate(baseDate, it.Recurrence)
 
+		var nextStart *string
+		if it.StartDate != nil && *it.StartDate != "" {
+			ns := CalculateNextDueDate(*it.StartDate, it.Recurrence)
+			nextStart = &ns
+		}
+
 		// 次回インスタンスを生成
 		nextItem := &model.Item{
 			ProjectID:  it.ProjectID,
 			Title:      it.Title,
 			Body:       it.Body,
 			Status:     "next",
+			StartDate:  nextStart,
 			DueDate:    &nextDue,
 			Recurrence: it.Recurrence,
 			Contexts:   it.Contexts,

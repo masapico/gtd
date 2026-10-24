@@ -60,6 +60,14 @@ func (h *Handler) CreateItem(w http.ResponseWriter, r *http.Request) {
 		pDueDate = parsed.DueDate
 	}
 
+	startDate := r.FormValue("start_date")
+	var pStartDate *string
+	if startDate != "" {
+		pStartDate = &startDate
+	} else if parsed.StartDate != nil {
+		pStartDate = parsed.StartDate
+	}
+
 	recurrence := r.FormValue("recurrence")
 	if recurrence == "" {
 		recurrence = "none"
@@ -79,6 +87,7 @@ func (h *Handler) CreateItem(w http.ResponseWriter, r *http.Request) {
 		Title:      title,
 		Body:       r.FormValue("body"),
 		Status:     status,
+		StartDate:  pStartDate,
 		DueDate:    pDueDate,
 		Recurrence: recurrence,
 		Contexts:   itemContexts,
@@ -146,14 +155,22 @@ func (h *Handler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 		pDueDate = &d
 	}
 
-	// Smart Add 構文解析 (^期日, #コンテキスト)
+	var pStartDate *string
+	if s := r.FormValue("start_date"); s != "" {
+		pStartDate = &s
+	}
+
+	// Smart Add 構文解析 (^期日, ~開始日, #コンテキスト)
 	parsed := smartadd.Parse(title, time.Now())
 	syntaxDetected := false
-	if parsed.CleanTitle != title || len(parsed.Contexts) > 0 || (parsed.DueDate != nil && (pDueDate == nil || *pDueDate != *parsed.DueDate)) {
+	if parsed.CleanTitle != title || len(parsed.Contexts) > 0 || (parsed.DueDate != nil && (pDueDate == nil || *pDueDate != *parsed.DueDate)) || (parsed.StartDate != nil && (pStartDate == nil || *pStartDate != *parsed.StartDate)) {
 		syntaxDetected = true
 		title = parsed.CleanTitle
 		if title == "" {
 			title = "（タイトルなし）"
+		}
+		if parsed.StartDate != nil {
+			pStartDate = parsed.StartDate
 		}
 		if parsed.DueDate != nil {
 			pDueDate = parsed.DueDate
@@ -189,6 +206,7 @@ func (h *Handler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 		Title:      title,
 		Body:       r.FormValue("body"),
 		Status:     status,
+		StartDate:  pStartDate,
 		DueDate:    pDueDate,
 		Recurrence: recurrence,
 	}

@@ -127,34 +127,56 @@
         </select>
       </div>
 
-      <!-- Due Date & Recurrence -->
+      <!-- Start Date & Due Date -->
       <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="detail-start">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+            <span>開始日</span>
+            <span style="font-size: 0.7rem; color: var(--md-sys-color-outline); font-weight: normal;">(~開始)</span>
+          </label>
+          <input id="detail-start" name="start_date" class="form-input" type="date" value="{{formatShortDate .Item.StartDate}}">
+        </div>
         <div class="form-group">
           <label class="form-label" for="detail-due">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
               <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/>
             </svg>
             <span>期日</span>
+            <span style="font-size: 0.7rem; color: var(--md-sys-color-outline); font-weight: normal;">(^締切)</span>
           </label>
           <input id="detail-due" name="due_date" class="form-input" type="date" value="{{formatShortDate .Item.DueDate}}">
         </div>
-        <div class="form-group">
-          <label class="form-label" for="detail-recurrence">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
-              <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
-            </svg>
-            <span>繰り返し</span>
-            <span style="font-size: 0.72rem; color: var(--md-sys-color-outline); font-weight: normal;">(リピート)</span>
-          </label>
-          <select id="detail-recurrence" name="recurrence" class="form-select">
-            <option value="none" {{if eq .Item.Recurrence "none"}}selected{{end}}>なし</option>
-            <option value="daily" {{if eq .Item.Recurrence "daily"}}selected{{end}}>毎日</option>
-            <option value="weekdays" {{if eq .Item.Recurrence "weekdays"}}selected{{end}}>平日 (月〜金)</option>
-            <option value="weekly" {{if eq .Item.Recurrence "weekly"}}selected{{end}}>毎週</option>
-            <option value="monthly" {{if eq .Item.Recurrence "monthly"}}selected{{end}}>毎月</option>
-            <option value="yearly" {{if eq .Item.Recurrence "yearly"}}selected{{end}}>毎年</option>
-          </select>
+      </div>
+
+      {{if .Item.IsDeferred}}
+        <div class="deferral-notice">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+            <path d="M9 16h2V8H9v8zm4 0h2V8h-2v8zm-1-14C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+          </svg>
+          <span>{{.Item.StartDisplay}}（開始日まで Next Actions から保留）</span>
         </div>
+      {{end}}
+
+      <!-- Recurrence -->
+      <div class="form-group">
+        <label class="form-label" for="detail-recurrence">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+            <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
+          </svg>
+          <span>繰り返し</span>
+          <span style="font-size: 0.72rem; color: var(--md-sys-color-outline); font-weight: normal;">(リピート)</span>
+        </label>
+        <select id="detail-recurrence" name="recurrence" class="form-select">
+          <option value="none" {{if eq .Item.Recurrence "none"}}selected{{end}}>なし</option>
+          <option value="daily" {{if eq .Item.Recurrence "daily"}}selected{{end}}>毎日</option>
+          <option value="weekdays" {{if eq .Item.Recurrence "weekdays"}}selected{{end}}>平日 (月〜金)</option>
+          <option value="weekly" {{if eq .Item.Recurrence "weekly"}}selected{{end}}>毎週</option>
+          <option value="monthly" {{if eq .Item.Recurrence "monthly"}}selected{{end}}>毎月</option>
+          <option value="yearly" {{if eq .Item.Recurrence "yearly"}}selected{{end}}>毎年</option>
+        </select>
       </div>
 
       <!-- Body / Note -->

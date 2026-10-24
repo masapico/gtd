@@ -974,6 +974,110 @@ body {
 }
 
 /* ==========================================================================
+   Scheduled View & Start Date Badges (Material Design 3 Aligned)
+   ========================================================================== */
+
+.meta-tag.tag-start-date {
+  background-color: var(--md-sys-color-tertiary-container);
+  color: var(--md-sys-color-on-tertiary-container);
+  border: 1px solid rgba(107, 87, 120, 0.2);
+}
+
+.scheduled-section-group {
+  margin-bottom: 24px;
+}
+
+.scheduled-section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  margin-bottom: 8px;
+  background-color: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface);
+  border-radius: var(--md-shape-md);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  transition: background-color 0.2s ease;
+}
+
+#sched-section-overdue .scheduled-section-header {
+  background-color: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+  border-color: rgba(186, 26, 26, 0.25);
+}
+
+#sched-section-today .scheduled-section-header {
+  background-color: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  border-color: rgba(0, 99, 155, 0.25);
+}
+
+#sched-section-deferred .scheduled-section-header {
+  background-color: var(--md-sys-color-tertiary-container);
+  color: var(--md-sys-color-on-tertiary-container);
+  border-color: rgba(107, 87, 120, 0.25);
+}
+
+.scheduled-section-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.scheduled-section-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+}
+
+.scheduled-badge {
+  margin-left: auto;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--md-shape-full);
+  background-color: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-on-surface-variant);
+  display: inline-flex;
+  align-items: center;
+}
+
+.scheduled-badge.badge-alert {
+  background-color: var(--md-sys-color-error);
+  color: var(--md-sys-color-on-error);
+}
+
+.scheduled-badge.badge-today {
+  background-color: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+}
+
+.scheduled-empty-row {
+  padding: 10px 14px;
+  color: var(--md-sys-color-outline);
+  font-size: 0.82rem;
+  background-color: var(--md-sys-color-surface-container-lowest);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-shape-sm);
+}
+
+.deferral-notice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--md-sys-color-on-tertiary-container);
+  background-color: var(--md-sys-color-tertiary-container);
+  padding: 6px 10px;
+  border-radius: var(--md-shape-sm);
+  margin-bottom: 12px;
+}
+
+/* ==========================================================================
    Responsive Adaptations (Maximized vs Medium vs Small Window)
    ========================================================================== */
 

@@ -29,6 +29,23 @@
   </a>
 
   <a class="nav-item" 
+     hx-get="/partials/items?view=scheduled" 
+     hx-target="#main-content-pane" 
+     onclick="closeDetailPane()">
+    <svg class="nav-icon" viewBox="0 0 24 24">
+      <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/>
+    </svg>
+    <span class="nav-label">期限・予定</span>
+    {{if gt .Counts.ScheduledOverdueToday 0}}
+      <span class="badge badge-alert" title="今日期限または期限超過のタスク">{{.Counts.ScheduledOverdueToday}}</span>
+    {{else if gt .Counts.ScheduledTotal 0}}
+      <span class="badge">{{.Counts.ScheduledTotal}}</span>
+    {{else}}
+      <span class="badge">0</span>
+    {{end}}
+  </a>
+
+  <a class="nav-item" 
      hx-get="/partials/items?view=waiting" 
      hx-target="#main-content-pane" 
      onclick="closeDetailPane()">

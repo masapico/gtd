@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"gtd/internal/db"
 	"gtd/internal/model"
@@ -25,19 +27,20 @@ type SidebarData struct {
 
 // ItemListData は中央リスト描画用のデータモデルです
 type ItemListData struct {
-	View           string
-	Title          string
-	Description    string
-	Items          []model.Item
-	Contexts       []model.Context
-	CurrentProject *model.Project
-	CurrentContext *model.Context
-	ProjectID      *int64
-	ContextID      *int64
-	Search         string
-	Projects       []model.Project
-	ProjectStatus  string
-	Counts         model.SidebarCounts
+	View              string
+	Title             string
+	Description       string
+	Items             []model.Item
+	ScheduledSections []model.ScheduledSection
+	Contexts          []model.Context
+	CurrentProject    *model.Project
+	CurrentContext    *model.Context
+	ProjectID         *int64
+	ContextID         *int64
+	Search            string
+	Projects          []model.Project
+	ProjectStatus     string
+	Counts            model.SidebarCounts
 }
 
 func (h *Handler) buildSidebarData(view string, selectedProjectID int64) SidebarData {
@@ -111,10 +114,95 @@ func (h *Handler) buildItemListData(view string, pID *int64, cID *int64, search 
 	// 表示タイトル
 	title := "Inbox"
 	description := "頭の中にあるものをすべて書き出す場所。判断は後から行います。"
+	var scheduledSections []model.ScheduledSection
+
 	switch view {
 	case "next":
 		title = "Next Actions"
 		description = "今すぐ、または次に実行可能な具体的行動。"
+	case "scheduled":
+		title = "期限・予定"
+		description = "期日があるタスクおよび指定日待ちの行動を時系列で把握します。"
+
+		now := time.Now().In(time.Local)
+		todayStr := now.Format("2006-01-02")
+		tomorrowStr := now.AddDate(0, 0, 1).Format("2006-01-02")
+		weekLaterStr := now.AddDate(0, 0, 7).Format("2006-01-02")
+
+		var overdueItems, todayItems, tomorrowItems, weekItems, laterItems, deferredItems []model.Item
+
+		for _, it := range items {
+			due := it.FormattedDueDate()
+			if due != "" {
+				if due < todayStr {
+					overdueItems = append(overdueItems, it)
+				} else if due == todayStr {
+					todayItems = append(todayItems, it)
+				} else if due == tomorrowStr {
+					tomorrowItems = append(tomorrowItems, it)
+				} else if due <= weekLaterStr {
+					weekItems = append(weekItems, it)
+				} else {
+					laterItems = append(laterItems, it)
+				}
+			} else if it.IsDeferred() {
+				deferredItems = append(deferredItems, it)
+			}
+		}
+
+		if len(overdueItems) > 0 {
+			scheduledSections = append(scheduledSections, model.ScheduledSection{
+				ID:         "overdue",
+				Title:      "期限超過",
+				Badge:      fmt.Sprintf("%d件", len(overdueItems)),
+				BadgeClass: "badge-alert",
+				Items:      overdueItems,
+			})
+		}
+		// 今日枠は常に表示
+		scheduledSections = append(scheduledSections, model.ScheduledSection{
+			ID:         "today",
+			Title:      "今日",
+			Badge:      fmt.Sprintf("%d件", len(todayItems)),
+			BadgeClass: "badge-today",
+			Items:      todayItems,
+		})
+		if len(tomorrowItems) > 0 {
+			scheduledSections = append(scheduledSections, model.ScheduledSection{
+				ID:         "tomorrow",
+				Title:      "明日",
+				Badge:      fmt.Sprintf("%d件", len(tomorrowItems)),
+				BadgeClass: "",
+				Items:      tomorrowItems,
+			})
+		}
+		if len(weekItems) > 0 {
+			scheduledSections = append(scheduledSections, model.ScheduledSection{
+				ID:         "week",
+				Title:      "直近7日間",
+				Badge:      fmt.Sprintf("%d件", len(weekItems)),
+				BadgeClass: "",
+				Items:      weekItems,
+			})
+		}
+		if len(laterItems) > 0 {
+			scheduledSections = append(scheduledSections, model.ScheduledSection{
+				ID:         "later",
+				Title:      "今後 (8日以降)",
+				Badge:      fmt.Sprintf("%d件", len(laterItems)),
+				BadgeClass: "",
+				Items:      laterItems,
+			})
+		}
+		if len(deferredItems) > 0 {
+			scheduledSections = append(scheduledSections, model.ScheduledSection{
+				ID:         "deferred",
+				Title:      "開始待ち",
+				Badge:      fmt.Sprintf("%d件", len(deferredItems)),
+				BadgeClass: "",
+				Items:      deferredItems,
+			})
+		}
 	case "waiting":
 		title = "Waiting For"
 		description = "誰かの返信や成果物待ちのタスク。"
@@ -148,19 +236,20 @@ func (h *Handler) buildItemListData(view string, pID *int64, cID *int64, search 
 	}
 
 	return ItemListData{
-		View:           view,
-		Title:          title,
-		Description:    description,
-		Items:          items,
-		Contexts:       contexts,
-		CurrentProject: currentProject,
-		CurrentContext: currentContext,
-		ProjectID:      pID,
-		ContextID:      cID,
-		Search:         search,
-		Projects:       projects,
-		ProjectStatus:  projectStatus,
-		Counts:         counts,
+		View:              view,
+		Title:             title,
+		Description:       description,
+		Items:             items,
+		ScheduledSections: scheduledSections,
+		Contexts:          contexts,
+		CurrentProject:    currentProject,
+		CurrentContext:    currentContext,
+		ProjectID:         pID,
+		ContextID:         cID,
+		Search:            search,
+		Projects:          projects,
+		ProjectStatus:     projectStatus,
+		Counts:            counts,
 	}, nil
 }
 

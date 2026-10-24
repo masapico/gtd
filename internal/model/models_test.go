@@ -119,3 +119,74 @@ func TestItemDueDisplayAndTooltip(t *testing.T) {
 	}
 }
 
+func TestCalculateStartDisplay(t *testing.T) {
+	now := time.Date(2026, 10, 24, 14, 30, 0, 0, time.Local)
+
+	tests := []struct {
+		name      string
+		target    time.Time
+		wantLabel string
+	}{
+		{
+			name:      "past",
+			target:    time.Date(2026, 10, 20, 0, 0, 0, 0, time.Local),
+			wantLabel: "開始日経過",
+		},
+		{
+			name:      "today",
+			target:    time.Date(2026, 10, 24, 0, 0, 0, 0, time.Local),
+			wantLabel: "今日から開始可能",
+		},
+		{
+			name:      "tomorrow",
+			target:    time.Date(2026, 10, 25, 0, 0, 0, 0, time.Local),
+			wantLabel: "明日から開始",
+		},
+		{
+			name:      "day after tomorrow",
+			target:    time.Date(2026, 10, 26, 0, 0, 0, 0, time.Local),
+			wantLabel: "明後日から開始",
+		},
+		{
+			name:      "5 days later",
+			target:    time.Date(2026, 10, 29, 0, 0, 0, 0, time.Local),
+			wantLabel: "5日後から開始",
+		},
+		{
+			name:      "same year future",
+			target:    time.Date(2026, 11, 20, 0, 0, 0, 0, time.Local),
+			wantLabel: "11月20日から開始",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := model.CalculateStartDisplay(tt.target, now)
+			if got != tt.wantLabel {
+				t.Errorf("CalculateStartDisplay() = %v, want %v", got, tt.wantLabel)
+			}
+		})
+	}
+}
+
+func TestItemIsDeferred(t *testing.T) {
+	tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
+	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	today := time.Now().Format("2006-01-02")
+
+	itemFuture := model.Item{StartDate: &tomorrow}
+	if !itemFuture.IsDeferred() {
+		t.Errorf("expected itemFuture to be deferred")
+	}
+
+	itemPast := model.Item{StartDate: &yesterday}
+	if itemPast.IsDeferred() {
+		t.Errorf("expected itemPast not to be deferred")
+	}
+
+	itemToday := model.Item{StartDate: &today}
+	if itemToday.IsDeferred() {
+		t.Errorf("expected itemToday not to be deferred")
+	}
+}
+

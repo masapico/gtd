@@ -50,6 +50,7 @@ type Item struct {
 	Title          string       `json:"title"`
 	Body           string       `json:"body"`
 	Status         string       `json:"status"` // 'inbox', 'next', 'waiting', 'someday', 'reference', 'done'
+	StartDate      *string      `json:"start_date"` // 開始日（Tickler / Defer Date）
 	DueDate        *string      `json:"due_date"`
 	Recurrence     string       `json:"recurrence"` // 'none', 'daily', 'weekdays', 'weekly', 'monthly', 'yearly'
 	LastReviewedAt *time.Time   `json:"last_reviewed_at"`
@@ -106,6 +107,75 @@ func (i Item) HasContext(ctxID int64) bool {
 		}
 	}
 	return false
+}
+
+// FormattedStartDate はYYYY-MM-DD形式の開始日文字列を返します
+func (i Item) FormattedStartDate() string {
+	if i.StartDate == nil || *i.StartDate == "" {
+		return ""
+	}
+	s := *i.StartDate
+	if idx := strings.Index(s, "T"); idx != -1 {
+		return s[:idx]
+	}
+	if len(s) > 10 {
+		return s[:10]
+	}
+	return s
+}
+
+// IsDeferred は開始日が未来の日付（明日以降）に設定されていて、まだ着手待機状態（Tickler）かを判定します
+func (i Item) IsDeferred() bool {
+	sStr := i.FormattedStartDate()
+	if sStr == "" {
+		return false
+	}
+	t, err := time.ParseInLocation("2006-01-02", sStr, time.Local)
+	if err != nil {
+		return false
+	}
+	now := time.Now().In(time.Local)
+	todayZero := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
+	startZero := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.Local)
+	return startZero.After(todayZero)
+}
+
+// StartDisplay は開始日の人間向け相対表記（今日開始、明日開始、N日後開始など）を返します
+func (i Item) StartDisplay() string {
+	sStr := i.FormattedStartDate()
+	if sStr == "" {
+		return ""
+	}
+	t, err := time.ParseInLocation("2006-01-02", sStr, time.Local)
+	if err != nil {
+		return sStr
+	}
+	return CalculateStartDisplay(t, time.Now().In(time.Local))
+}
+
+// CalculateStartDisplay は基準時刻 now に対する開始日 t の相対表記を算出します
+func CalculateStartDisplay(t, now time.Time) string {
+	todayZero := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
+	startZero := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.Local)
+	diffDays := int(math.Round(startZero.Sub(todayZero).Hours() / 24.0))
+
+	switch {
+	case diffDays <= -1:
+		return "開始日経過"
+	case diffDays == 0:
+		return "今日から開始可能"
+	case diffDays == 1:
+		return "明日から開始"
+	case diffDays == 2:
+		return "明後日から開始"
+	case diffDays >= 3 && diffDays <= 14:
+		return fmt.Sprintf("%d日後から開始", diffDays)
+	default:
+		if t.Year() == now.Year() {
+			return fmt.Sprintf("%sから開始", t.Format("1月2日"))
+		}
+		return fmt.Sprintf("%sから開始", t.Format("2006年1月2日"))
+	}
 }
 
 // FormattedDueDate はYYYY-MM-DD形式の期日文字列を返します
@@ -222,21 +292,32 @@ func (a Attachment) CleanTargetName() string {
 
 // SidebarCounts は左ペインの各ビューおよびバッジ件数を保持します
 type SidebarCounts struct {
-	Inbox           int
-	Next            int
-	Waiting         int
-	Someday         int
-	Reference       int
-	Done            int
-	Projects        int
-	StalledProjects int
-	DoneProjects    int
-	SomedayProjects int
+	Inbox                 int
+	Next                  int
+	ScheduledOverdueToday int // 期限超過または今日が期限のタスク件数（アラート用）
+	ScheduledTotal        int // 期限または未来開始が設定されているタスクの総件数
+	Waiting               int
+	Someday               int
+	Reference             int
+	Done                  int
+	Projects              int
+	StalledProjects       int
+	DoneProjects          int
+	SomedayProjects       int
+}
+
+// ScheduledSection は期限・予定ビューでアイテムを時間枠別にグループ表示するための構造体です
+type ScheduledSection struct {
+	ID         string `json:"id"`          // 'overdue', 'today', 'tomorrow', 'week', 'later', 'deferred'
+	Title      string `json:"title"`       // 表示タイトル（例: '期限超過', '今日'）
+	Badge      string `json:"badge"`       // '2件' など
+	BadgeClass string `json:"badge_class"` // 'badge-alert', 'badge-today' など
+	Items      []Item `json:"items"`
 }
 
 // ItemFilter は中央リスト表示時の絞り込み条件です
 type ItemFilter struct {
-	View      string // 'inbox', 'next', 'waiting', 'someday', 'reference', 'done', 'project'
+	View      string // 'inbox', 'next', 'scheduled', 'waiting', 'someday', 'reference', 'done', 'project'
 	ProjectID *int64
 	ContextID *int64
 	Search    string

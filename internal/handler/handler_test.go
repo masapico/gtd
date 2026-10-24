@@ -986,3 +986,122 @@ func TestOpenAttachment_PathCheckAndErrors(t *testing.T) {
 		t.Errorf("expected opened target %q, got %q", tmpFile.Name(), openedTarget)
 	}
 }
+
+func TestStartDateAndScheduledViewRendering(t *testing.T) {
+	_, mux, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// 1. クイックキャプチャで未来開始・未来期日タスクを作成 (Smart Add: ~明日 ^fri)
+	form := url.Values{}
+	form.Set("title", "未来のタスク ~明日 ^fri #PC")
+	form.Set("status", "next")
+	req := httptest.NewRequest("POST", "/items", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Create item failed: %d", rec.Code)
+	}
+
+	// 2. Next Actions ビューを取得: 未来開始タスクは非表示であること
+	req = httptest.NewRequest("GET", "/partials/items?view=next", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Get next actions failed: %d", rec.Code)
+	}
+	nextHtml := rec.Body.String()
+	if strings.Contains(nextHtml, "未来のタスク") {
+		t.Errorf("expected future item to be hidden in next actions, but it was found in: %s", nextHtml)
+	}
+
+	// 3. 今日から開始可能なタスクを作成
+	form = url.Values{}
+	form.Set("title", "今日からできるタスク ~today")
+	form.Set("status", "next")
+	req = httptest.NewRequest("POST", "/items", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Create today item failed: %d", rec.Code)
+	}
+
+	req = httptest.NewRequest("GET", "/partials/items?view=next", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if !strings.Contains(rec.Body.String(), "今日からできるタスク") {
+		t.Errorf("expected today item to appear in next actions")
+	}
+
+	// 4. 期限・予定 (scheduled) ビューを取得
+	req = httptest.NewRequest("GET", "/partials/items?view=scheduled", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Get scheduled items failed: %d", rec.Code)
+	}
+	schedHtml := rec.Body.String()
+	if !strings.Contains(schedHtml, "期限・予定") {
+		t.Errorf("expected title '期限・予定', got: %s", schedHtml)
+	}
+	if !strings.Contains(schedHtml, "未来のタスク") {
+		t.Errorf("expected '未来のタスク' in scheduled view, got: %s", schedHtml)
+	}
+
+	// 5. サイドバーを取得し、「期限・予定」ナビゲーション項目が含まれることを確認
+	req = httptest.NewRequest("GET", "/partials/sidebar", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Get sidebar failed: %d", rec.Code)
+	}
+	sidebarHtml := rec.Body.String()
+	if !strings.Contains(sidebarHtml, "期限・予定") {
+		t.Errorf("expected '期限・予定' in sidebar, got: %s", sidebarHtml)
+	}
+	if !strings.Contains(sidebarHtml, "/partials/items?view=scheduled") {
+		t.Errorf("expected scheduled link in sidebar, got: %s", sidebarHtml)
+	}
+
+	// 6. 詳細ペインの表示と更新テスト
+	req = httptest.NewRequest("GET", "/items/1/detail", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Get item detail failed: %d", rec.Code)
+	}
+	detailHtml := rec.Body.String()
+	if !strings.Contains(detailHtml, "name=\"start_date\"") {
+		t.Errorf("expected start_date input in detail pane, got: %s", detailHtml)
+	}
+	if !strings.Contains(detailHtml, "Next Actions から保留") {
+		t.Errorf("expected deferral notice in detail pane, got: %s", detailHtml)
+	}
+
+	// 詳細ペインからの更新
+	form = url.Values{}
+	form.Set("title", "未来のタスク（更新後）")
+	form.Set("status", "next")
+	form.Set("start_date", "2026-11-01")
+	form.Set("due_date", "2026-11-05")
+	req = httptest.NewRequest("PUT", "/items/1", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Update item failed: %d", rec.Code)
+	}
+
+	req = httptest.NewRequest("GET", "/items/1/detail", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	updatedDetail := rec.Body.String()
+	if !strings.Contains(updatedDetail, "2026-11-01") {
+		t.Errorf("expected updated start_date 2026-11-01 in detail pane")
+	}
+}

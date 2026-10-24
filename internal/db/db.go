@@ -70,6 +70,7 @@ func migrateSchema(db *sql.DB) error {
 		title TEXT NOT NULL,
 		body TEXT,
 		status TEXT NOT NULL DEFAULT 'inbox', -- 'inbox', 'next', 'waiting', 'someday', 'reference', 'done'
+		start_date TEXT,
 		due_date TEXT,
 		recurrence TEXT NOT NULL DEFAULT 'none', -- 'none', 'daily', 'weekdays', 'weekly', 'monthly', 'yearly'
 		last_reviewed_at DATETIME,
@@ -106,8 +107,52 @@ func migrateSchema(db *sql.DB) error {
 	CREATE INDEX IF NOT EXISTS idx_attachments_item ON attachments(item_id);
 	`
 
-	_, err := db.Exec(schema)
-	return err
+	if _, err := db.Exec(schema); err != nil {
+		return err
+	}
+
+	// 既存DBへの start_date カラム追加マイグレーション
+	if err := addColumnIfNotExists(db, "items", "start_date", "TEXT"); err != nil {
+		return err
+	}
+
+	// カラム存在保証後にインデックス作成
+	if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_items_start_date ON items(start_date);"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func addColumnIfNotExists(db *sql.DB, tableName, columnName, columnType string) error {
+	rows, err := db.Query(fmt.Sprintf("PRAGMA table_info(%s)", tableName))
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	exists := false
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notnull, pk int
+		var dfltValue sql.NullString
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk); err != nil {
+			return err
+		}
+		if name == columnName {
+			exists = true
+			break
+		}
+	}
+
+	if !exists {
+		query := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", tableName, columnName, columnType)
+		if _, err := db.Exec(query); err != nil {
+			return fmt.Errorf("failed to add column %s to %s: %w", columnName, tableName, err)
+		}
+	}
+	return nil
 }
 
 func seedDefaultContexts(db *sql.DB) error {
