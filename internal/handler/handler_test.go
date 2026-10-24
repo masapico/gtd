@@ -36,6 +36,7 @@ func setupTestServer(t *testing.T) (*Handler, http.Handler, func()) {
 		"../../templates/partials/item_list.html",
 		"../../templates/partials/item_detail.html",
 		"../../templates/partials/attachments.html",
+		"../../templates/partials/attachment_item.html",
 		"../../templates/partials/review_step.html",
 		"../../templates/partials/search_results.html",
 		"../../templates/partials/launchers_modal.html",
@@ -60,6 +61,9 @@ func setupTestServer(t *testing.T) (*Handler, http.Handler, func()) {
 	mux.HandleFunc("POST /items/{id}/attachments", h.AddAttachment)
 	mux.HandleFunc("POST /items/{id}/paste-image", h.PasteImage)
 	mux.HandleFunc("GET /items/{id}/attachments", h.GetAttachments)
+	mux.HandleFunc("GET /attachments/{id}", h.GetAttachmentItem)
+	mux.HandleFunc("GET /attachments/{id}/edit", h.GetAttachmentEditForm)
+	mux.HandleFunc("PUT /attachments/{id}", h.UpdateAttachment)
 	mux.HandleFunc("POST /attachments/{id}/open", h.OpenAttachment)
 	mux.HandleFunc("DELETE /attachments/{id}", h.DeleteAttachment)
 	mux.HandleFunc("GET /partials/launchers", h.ServeLauncherModal)
@@ -1734,3 +1738,179 @@ func TestProjectStatusSectionsAndDetailContext(t *testing.T) {
 		}
 	}
 }
+
+func TestAttachmentRenameFlow(t *testing.T) {
+	h, mux, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// 1. アイテムと各種添付（画像、URL、パス）を作成
+	item := &model.Item{Title: "添付ファイル名称変更テストタスク", Status: "inbox"}
+	itemID, err := db.CreateItem(h.DB, item)
+	if err != nil {
+		t.Fatalf("CreateItem failed: %v", err)
+	}
+
+	imgAtt := &model.Attachment{
+		ItemID: itemID,
+		Label:  "スクショ 10/24 19:29",
+		Target: "clip_20261024_192951_0396eb1c.png",
+		Type:   "image",
+	}
+	imgID, err := db.CreateAttachment(h.DB, imgAtt)
+	if err != nil {
+		t.Fatalf("CreateAttachment (image) failed: %v", err)
+	}
+
+	pathAtt := &model.Attachment{
+		ItemID: itemID,
+		Label:  "旧設計書",
+		Target: `C:\projects\spec.pdf`,
+		Type:   "path",
+	}
+	pathID, err := db.CreateAttachment(h.DB, pathAtt)
+	if err != nil {
+		t.Fatalf("CreateAttachment (path) failed: %v", err)
+	}
+
+	// 2. GET /attachments/{id}/edit（編集フォームの取得）
+	req := httptest.NewRequest("GET", fmt.Sprintf("/attachments/%d/edit", imgID), nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for GET /attachments/{id}/edit, got %d", rec.Code)
+	}
+	editHTML := rec.Body.String()
+	if !strings.Contains(editHTML, fmt.Sprintf("hx-put=\"/attachments/%d\"", imgID)) {
+		t.Errorf("expected form with hx-put to attachment %d, got: %s", imgID, editHTML)
+	}
+	if !strings.Contains(editHTML, "スクショ 10/24 19:29") {
+		t.Errorf("expected input value 'スクショ 10/24 19:29' in form, got: %s", editHTML)
+	}
+	if !strings.Contains(editHTML, "キャンセル") {
+		t.Errorf("expected cancel button in edit form, got: %s", editHTML)
+	}
+
+	// 3. PUT /attachments/{id}（名称更新）
+	form := url.Values{}
+	form.Set("label", "ログイン画面のエラー")
+	req = httptest.NewRequest("PUT", fmt.Sprintf("/attachments/%d", imgID), strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for PUT /attachments/{id}, got %d: %s", rec.Code, rec.Body.String())
+	}
+	updateHTML := rec.Body.String()
+	if !strings.Contains(updateHTML, "ログイン画面のエラー") {
+		t.Errorf("expected updated label in response HTML, got: %s", updateHTML)
+	}
+	if strings.Contains(updateHTML, "<form hx-put=") {
+		t.Errorf("expected view mode HTML (not form) after update, got: %s", updateHTML)
+	}
+
+	// HX-Trigger 検証 (itemChanged)
+	trigger := rec.Header().Get("HX-Trigger")
+	if !strings.Contains(trigger, "itemChanged") {
+		t.Errorf("expected itemChanged in HX-Trigger header, got: %s", trigger)
+	}
+
+	// DB内レコード検証
+	dbAtt, err := db.GetAttachmentByID(h.DB, imgID)
+	if err != nil {
+		t.Fatalf("GetAttachmentByID failed: %v", err)
+	}
+	if dbAtt.Label != "ログイン画面のエラー" {
+		t.Errorf("expected DB label 'ログイン画面のエラー', got %q", dbAtt.Label)
+	}
+
+	// 4. GET /attachments/{id}（通常表示・キャンセル時エンドポイント）
+	req = httptest.NewRequest("GET", fmt.Sprintf("/attachments/%d", imgID), nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for GET /attachments/{id}, got %d", rec.Code)
+	}
+	viewHTML := rec.Body.String()
+	if !strings.Contains(viewHTML, "ログイン画面のエラー") {
+		t.Errorf("expected label in view HTML, got: %s", viewHTML)
+	}
+	if !strings.Contains(viewHTML, fmt.Sprintf("hx-get=\"/attachments/%d/edit\"", imgID)) {
+		t.Errorf("expected edit button in view HTML, got: %s", viewHTML)
+	}
+
+	// 5. 空文字送信時の挙動
+	// 5-1. 画像: 空白のみを送信した場合は現在の名称が維持されること
+	emptyForm := url.Values{}
+	emptyForm.Set("label", "   ")
+	req = httptest.NewRequest("PUT", fmt.Sprintf("/attachments/%d", imgID), strings.NewReader(emptyForm.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for PUT with empty label on image, got %d", rec.Code)
+	}
+	dbAttImg, _ := db.GetAttachmentByID(h.DB, imgID)
+	if dbAttImg.Label != "ログイン画面のエラー" {
+		t.Errorf("expected image to keep readable label, got %q", dbAttImg.Label)
+	}
+
+	// 5-2. パス: 空白を送信した場合はラベルがクリアされ、CleanTargetNameがファイル名にフォールバックすること
+	req = httptest.NewRequest("PUT", fmt.Sprintf("/attachments/%d", pathID), strings.NewReader(emptyForm.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for PUT with empty label on path, got %d", rec.Code)
+	}
+	dbAttPath, _ := db.GetAttachmentByID(h.DB, pathID)
+	if dbAttPath.Label != "" {
+		t.Errorf("expected path label to be empty, got %q", dbAttPath.Label)
+	}
+	if dbAttPath.CleanTargetName() != "spec.pdf" {
+		t.Errorf("expected CleanTargetName fallback to 'spec.pdf', got %q", dbAttPath.CleanTargetName())
+	}
+
+	// 6. 異常系テスト
+	// 6-1. 不正なID
+	req = httptest.NewRequest("GET", "/attachments/invalid/edit", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for invalid ID, got %d", rec.Code)
+	}
+
+	// 6-2. 存在しないID
+	req = httptest.NewRequest("GET", "/attachments/999999/edit", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("expected 404 for non-existent ID, got %d", rec.Code)
+	}
+
+	req = httptest.NewRequest("PUT", "/attachments/999999", strings.NewReader("label=test"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("expected 404 for non-existent ID PUT, got %d", rec.Code)
+	}
+
+	// 7. アイテム詳細画面（GET /items/{id}/detail）に添付一覧と名称変更ボタンが含まれていること
+	req = httptest.NewRequest("GET", fmt.Sprintf("/items/%d/detail", itemID), nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for GET /items/{id}/detail, got %d", rec.Code)
+	}
+	detailHTML := rec.Body.String()
+	if !strings.Contains(detailHTML, "ログイン画面のエラー") {
+		t.Errorf("expected renamed attachment label in detail HTML")
+	}
+	if !strings.Contains(detailHTML, fmt.Sprintf("hx-get=\"/attachments/%d/edit\"", imgID)) {
+		t.Errorf("expected rename button in detail HTML")
+	}
+}
+

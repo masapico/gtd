@@ -792,6 +792,22 @@ func DeleteAttachment(db *sql.DB, id int64) (*model.Attachment, error) {
 	return att, nil
 }
 
+// UpdateAttachmentLabel は添付ファイルの名称・ラベルを更新します
+func UpdateAttachmentLabel(db *sql.DB, id int64, label string) error {
+	res, err := db.Exec(`UPDATE attachments SET label = ? WHERE id = ?`, label, id)
+	if err != nil {
+		return err
+	}
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
 // Review Queries
 
 // GetInboxItems は週次レビュー Step 1 用の未処理アイテム一覧を取得します

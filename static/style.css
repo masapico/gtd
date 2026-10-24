@@ -1524,6 +1524,22 @@ body {
   margin-bottom: 6px;
 }
 
+.attachment-item.editing {
+  background-color: var(--md-sys-color-surface-container-high);
+  border-color: var(--md-sys-color-primary);
+  box-shadow: 0 0 0 1px var(--md-sys-color-primary);
+}
+
+.attachment-name {
+  border-radius: var(--md-shape-xs);
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.attachment-name:hover {
+  color: var(--md-sys-color-primary);
+  text-decoration: underline;
+}
+
 .attachment-info {
   display: flex;
   align-items: center;

@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"path/filepath"
 	"testing"
 	"time"
@@ -554,6 +555,54 @@ func TestLauncherCRUDAndSearch(t *testing.T) {
 	allAfterDelete, _ := GetAllLaunchers(db)
 	if len(allAfterDelete) != 1 {
 		t.Errorf("expected 1 launcher after delete, got %d", len(allAfterDelete))
+	}
+}
+
+func TestUpdateAttachmentLabel(t *testing.T) {
+	dbPath := setupTestDB(t)
+	db, err := InitDB(dbPath)
+	if err != nil {
+		t.Fatalf("InitDB failed: %v", err)
+	}
+	defer db.Close()
+
+	item := &model.Item{Title: "Item for attachment test", Status: "inbox"}
+	itemID, err := CreateItem(db, item)
+	if err != nil {
+		t.Fatalf("CreateItem failed: %v", err)
+	}
+
+	att := &model.Attachment{
+		ItemID: itemID,
+		Label:  "スクショ 10/24 19:29",
+		Target: "clip_20261024_192951_0396eb1c.png",
+		Type:   "image",
+	}
+	attID, err := CreateAttachment(db, att)
+	if err != nil {
+		t.Fatalf("CreateAttachment failed: %v", err)
+	}
+
+	// 1. ラベル更新
+	if err := UpdateAttachmentLabel(db, attID, "ログイン画面エラー"); err != nil {
+		t.Fatalf("UpdateAttachmentLabel failed: %v", err)
+	}
+
+	// 2. 取得して検証
+	got, err := GetAttachmentByID(db, attID)
+	if err != nil {
+		t.Fatalf("GetAttachmentByID failed: %v", err)
+	}
+	if got.Label != "ログイン画面エラー" {
+		t.Errorf("expected label 'ログイン画面エラー', got %q", got.Label)
+	}
+	if got.CleanTargetName() != "ログイン画面エラー" {
+		t.Errorf("expected CleanTargetName 'ログイン画面エラー', got %q", got.CleanTargetName())
+	}
+
+	// 3. 存在しないIDの更新時は sql.ErrNoRows が返ること
+	if err := UpdateAttachmentLabel(db, 999999, "存在しない"); err != sql.ErrNoRows {
+		t.Errorf("expected sql.ErrNoRows for non-existent ID, got %v", err)
 	}
 }
 

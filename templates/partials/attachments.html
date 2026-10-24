@@ -11,77 +11,7 @@
   <!-- Attachments List -->
   <div style="margin-top: 6px;">
     {{range .Attachments}}
-      <div class="attachment-item">
-        <div class="attachment-info">
-          {{if eq .Type "image"}}
-            <a href="/data/images/{{.Target}}" target="_blank" rel="noopener">
-              <img src="/data/images/{{.Target}}" class="thumb-img" alt="スクショ" title="クリックで画像を開く">
-            </a>
-            <div>
-              <div style="font-weight: 500;">{{.CleanTargetName}}</div>
-              <div style="font-size: 0.72rem; color: var(--md-sys-color-outline);">スクリーンショット</div>
-            </div>
-          {{else if eq .Type "url"}}
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="color: #0d6efd; flex-shrink: 0;">
-              <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/>
-            </svg>
-            <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-              <div style="font-weight: 500;">{{.CleanTargetName}}</div>
-              <div style="font-size: 0.72rem; color: var(--md-sys-color-outline); overflow:hidden; text-overflow:ellipsis;">{{.Target}}</div>
-            </div>
-          {{else}}
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="color: #6f42c1; flex-shrink: 0;">
-              <path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/>
-            </svg>
-            <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-              <div style="font-weight: 500;">{{.CleanTargetName}}</div>
-              <div style="font-size: 0.72rem; color: var(--md-sys-color-outline); overflow:hidden; text-overflow:ellipsis;">{{.Target}}</div>
-            </div>
-          {{end}}
-        </div>
-
-        <div class="attachment-actions">
-          {{if eq .Type "url"}}
-            <a href="{{.Target}}" target="_blank" rel="noopener" class="btn-small" title="ブラウザで開く">
-              <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-                <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
-              </svg>
-              <span style="white-space: nowrap;">開く</span>
-            </a>
-          {{else if eq .Type "path"}}
-            <button type="button" class="btn-small" hx-post="/attachments/{{.ID}}/open" hx-swap="none" title="OSアプリまたはエクスプローラーで開く">
-              <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-                <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
-              </svg>
-              <span style="white-space: nowrap;">開く</span>
-            </button>
-            <button type="button" class="btn-small" style="white-space: nowrap;" onclick="copyToClipboard('{{.Target}}', this)" title="パスをクリップボードにコピー">
-              <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-                <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
-              </svg>
-              <span style="white-space: nowrap;">コピー</span>
-            </button>
-          {{else if eq .Type "image"}}
-            <a href="/data/images/{{.Target}}" target="_blank" rel="noopener" class="btn-small" title="拡大表示">
-              <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-                <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
-              </svg>
-              <span style="white-space: nowrap;">拡大</span>
-            </a>
-          {{end}}
-
-          <!-- Delete attachment -->
-          <button type="button" class="icon-btn danger" 
-                  hx-delete="/attachments/{{.ID}}" 
-                  hx-target="#attachments-container" 
-                  hx-swap="innerHTML"
-                  title="添付を削除">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-              <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-            </svg>
-          </button>
-        </div>
-      </div>
+      {{template "attachment_item.html" dict "Attachment" . "IsEditing" false}}
     {{end}}
   </div>
 

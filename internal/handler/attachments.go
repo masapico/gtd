@@ -349,3 +349,101 @@ func (h *Handler) ServeImage(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, filePath)
 }
 
+// GetAttachmentItem は単一の添付ファイルの表示用パーシャルを描画します（編集キャンセル時等）
+func (h *Handler) GetAttachmentItem(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "無効な添付IDです", http.StatusBadRequest)
+		return
+	}
+
+	att, err := db.GetAttachmentByID(h.DB, id)
+	if err != nil {
+		http.Error(w, "添付が見つかりません", http.StatusNotFound)
+		return
+	}
+
+	data := struct {
+		Attachment model.Attachment
+		IsEditing  bool
+	}{
+		Attachment: *att,
+		IsEditing:  false,
+	}
+
+	h.Render(w, "attachment_item.html", data)
+}
+
+// GetAttachmentEditForm は添付ファイルの名称インライン編集フォームを描画します
+func (h *Handler) GetAttachmentEditForm(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "無効な添付IDです", http.StatusBadRequest)
+		return
+	}
+
+	att, err := db.GetAttachmentByID(h.DB, id)
+	if err != nil {
+		http.Error(w, "添付が見つかりません", http.StatusNotFound)
+		return
+	}
+
+	data := struct {
+		Attachment model.Attachment
+		IsEditing  bool
+	}{
+		Attachment: *att,
+		IsEditing:  true,
+	}
+
+	h.Render(w, "attachment_item.html", data)
+}
+
+// UpdateAttachment は添付ファイルの名称（ラベル）を更新します
+func (h *Handler) UpdateAttachment(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "無効な添付IDです", http.StatusBadRequest)
+		return
+	}
+
+	att, err := db.GetAttachmentByID(h.DB, id)
+	if err != nil {
+		http.Error(w, "添付が見つかりません", http.StatusNotFound)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	newLabel := strings.TrimSpace(r.FormValue("label"))
+	// 画像形式かつ入力が空文字の場合は現在の表示名を維持
+	if att.Type == "image" && newLabel == "" {
+		newLabel = att.CleanTargetName()
+	}
+
+	if err := db.UpdateAttachmentLabel(h.DB, id, newLabel); err != nil {
+		http.Error(w, "名称の更新に失敗しました", http.StatusInternalServerError)
+		return
+	}
+
+	att.Label = newLabel
+	h.Trigger(w, "itemChanged")
+
+	data := struct {
+		Attachment model.Attachment
+		IsEditing  bool
+	}{
+		Attachment: *att,
+		IsEditing:  false,
+	}
+
+	h.Render(w, "attachment_item.html", data)
+}
+
+

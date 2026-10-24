@@ -179,7 +179,10 @@ func setupRouter(h *handler.Handler) *http.ServeMux {
 	mux.HandleFunc("PUT /contexts/{id}", h.UpdateContext)
 	mux.HandleFunc("DELETE /contexts/{id}", h.DeleteContext)
 
-	// Attachments (OS起動・削除)
+	// Attachments (詳細・名称編集・OS起動・削除)
+	mux.HandleFunc("GET /attachments/{id}", h.GetAttachmentItem)
+	mux.HandleFunc("GET /attachments/{id}/edit", h.GetAttachmentEditForm)
+	mux.HandleFunc("PUT /attachments/{id}", h.UpdateAttachment)
 	mux.HandleFunc("POST /attachments/{id}/open", h.OpenAttachment)
 	mux.HandleFunc("DELETE /attachments/{id}", h.DeleteAttachment)
 
