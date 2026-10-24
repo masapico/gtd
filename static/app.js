@@ -461,7 +461,7 @@ function syncMainPaneUrl(e) {
     const cfg = e.detail.requestConfig;
     const method = (cfg?.verb || cfg?.method || '').toLowerCase();
     const path = cfg?.path;
-    if (method === 'get' && path && path.startsWith('/partials/items')) {
+    if (method === 'get' && path && (path.startsWith('/partials/items') || path.startsWith('/review/step/'))) {
       target.setAttribute('hx-get', path);
     }
   }

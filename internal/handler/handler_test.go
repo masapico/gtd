@@ -466,6 +466,76 @@ func TestWeeklyReviewSteps(t *testing.T) {
 	}
 }
 
+func TestWeeklyReviewStep1ItemTriage(t *testing.T) {
+	h, mux, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// 1. Create an item in inbox
+	item := &model.Item{
+		Title:  "Review this inbox item",
+		Status: "inbox",
+	}
+	itemID, err := db.CreateItem(h.DB, item)
+	if err != nil {
+		t.Fatalf("CreateItem failed: %v", err)
+	}
+
+	// 2. Fetch Step 1
+	req := httptest.NewRequest("GET", "/review/step/1", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Step 1 failed: %d", rec.Code)
+	}
+	step1HTML := rec.Body.String()
+	if !strings.Contains(step1HTML, "Review this inbox item") {
+		t.Fatalf("expected item title in Step 1, got: %s", step1HTML)
+	}
+
+	// Verify buttons have hx-patch and do NOT have conflicting hx-get on the same button
+	patchAttr := fmt.Sprintf(`hx-patch="/items/%d/status"`, itemID)
+	if !strings.Contains(step1HTML, patchAttr) {
+		t.Errorf("expected %s in Step 1 buttons", patchAttr)
+	}
+	// Verify the buttons do NOT contain hx-get
+	for _, line := range strings.Split(step1HTML, "\n") {
+		if strings.Contains(line, "hx-patch=") || strings.Contains(line, "hx-delete=") {
+			if strings.Contains(line, "hx-get=") {
+				t.Errorf("found conflicting hx-get on line with mutation verb: %s", line)
+			}
+		}
+	}
+
+	// 3. Triage item to "next" using PATCH /items/{id}/status
+	form := url.Values{}
+	form.Set("status", "next")
+	req = httptest.NewRequest("PATCH", fmt.Sprintf("/items/%d/status", itemID), strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PATCH status failed: %d", rec.Code)
+	}
+	if trigger := rec.Header().Get("HX-Trigger"); !strings.Contains(trigger, "itemChanged") {
+		t.Errorf("expected HX-Trigger to contain 'itemChanged', got: %s", trigger)
+	}
+
+	// 4. Fetch Step 1 again: item should be gone and "Inbox Zero 達成！" should appear
+	req = httptest.NewRequest("GET", "/review/step/1", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Step 1 reload failed: %d", rec.Code)
+	}
+	step1After := rec.Body.String()
+	if strings.Contains(step1After, "Review this inbox item") {
+		t.Errorf("item should have been removed from Step 1, but still present")
+	}
+	if !strings.Contains(step1After, "Inbox Zero 達成！") {
+		t.Errorf("expected Inbox Zero in Step 1 after triaging all items, got: %s", step1After)
+	}
+}
+
 func TestProjectStatusTransitionsAndRestore(t *testing.T) {
 	h, mux, cleanup := setupTestServer(t)
 	defer cleanup()

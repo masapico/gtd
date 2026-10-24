@@ -1,17 +1,17 @@
 <div class="review-container">
   <!-- Stepper Tabs -->
   <div class="review-stepper">
-    <a class="step-tab {{if eq .Step 1}}active{{end}}" hx-get="/review/step/1" hx-target="#main-content-pane">
+    <a class="step-tab {{if eq .Step 1}}active{{end}}" hx-get="/review/step/1" hx-target="#main-content-pane" style="cursor: pointer;">
       <span>1. Get Clear</span>
       <span class="badge {{if gt .Counts.Inbox 0}}badge-alert{{end}}">{{.Counts.Inbox}}</span>
     </a>
-    <a class="step-tab {{if eq .Step 2}}active{{end}}" hx-get="/review/step/2" hx-target="#main-content-pane">
+    <a class="step-tab {{if eq .Step 2}}active{{end}}" hx-get="/review/step/2" hx-target="#main-content-pane" style="cursor: pointer;">
       <span>2. Get Current</span>
       {{if gt .Counts.StalledProjects 0}}
         <span class="badge badge-alert">警告 {{.Counts.StalledProjects}}</span>
       {{end}}
     </a>
-    <a class="step-tab {{if eq .Step 3}}active{{end}}" hx-get="/review/step/3" hx-target="#main-content-pane">
+    <a class="step-tab {{if eq .Step 3}}active{{end}}" hx-get="/review/step/3" hx-target="#main-content-pane" style="cursor: pointer;">
       <span>3. Get Creative</span>
     </a>
   </div>
@@ -56,33 +56,28 @@
           <div style="display: flex; gap: 6px; flex-wrap: wrap;">
             <button class="btn-small" 
                     hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "next"}' hx-swap="none" 
-                    hx-get="/review/step/1" hx-target="#main-content-pane" 
                     style="background-color: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); font-weight: 600;">
               Next Action (今やる)
             </button>
             <button class="btn-small" 
-                    hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "waiting"}' hx-swap="none" 
-                    hx-get="/review/step/1" hx-target="#main-content-pane">
+                    hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "waiting"}' hx-swap="none">
               Waiting (連絡待ち)
             </button>
             <button class="btn-small" 
-                    hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "someday"}' hx-swap="none" 
-                    hx-get="/review/step/1" hx-target="#main-content-pane">
+                    hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "someday"}' hx-swap="none">
               Someday (いつか)
             </button>
             <button class="btn-small" 
-                    hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "reference"}' hx-swap="none" 
-                    hx-get="/review/step/1" hx-target="#main-content-pane">
+                    hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "reference"}' hx-swap="none">
               Reference (資料メモ)
             </button>
             <button class="btn-small" 
-                    hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "done"}' hx-swap="none" 
-                    hx-get="/review/step/1" hx-target="#main-content-pane">
+                    hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "done"}' hx-swap="none">
               Done (完了)
             </button>
             <button class="btn-small" 
                     hx-delete="/items/{{.ID}}" hx-swap="none" 
-                    hx-get="/review/step/1" hx-target="#main-content-pane" 
+                    hx-confirm="このアイテムを完全に削除しますか？"
                     style="color: var(--md-sys-color-error);">
               削除
             </button>
@@ -132,18 +127,15 @@
           <div style="display: flex; gap: 6px; flex-shrink: 0;">
             <button class="btn-small" 
                     hx-post="/review/projects/{{.ID}}/reviewed" hx-swap="none" 
-                    hx-get="/review/step/2" hx-target="#main-content-pane" 
                     title="点検完了として日時を更新">
               点検完了
             </button>
             <button class="btn-small" 
-                    hx-patch="/projects/{{.ID}}/status" hx-vals='{"status": "someday"}' hx-swap="none" 
-                    hx-get="/review/step/2" hx-target="#main-content-pane">
+                    hx-patch="/projects/{{.ID}}/status" hx-vals='{"status": "someday"}' hx-swap="none">
               Somedayへ
             </button>
             <button class="btn-small" 
-                    hx-patch="/projects/{{.ID}}/status" hx-vals='{"status": "done"}' hx-swap="none" 
-                    hx-get="/review/step/2" hx-target="#main-content-pane">
+                    hx-patch="/projects/{{.ID}}/status" hx-vals='{"status": "done"}' hx-swap="none">
               プロジェクト完了
             </button>
           </div>
@@ -152,7 +144,6 @@
         <!-- Inline Add Next Action Form -->
         <form style="display: flex; gap: 6px; margin-top: 12px;" 
               hx-post="/items" hx-swap="none" 
-              hx-get="/review/step/2" hx-target="#main-content-pane"
               onsubmit="setTimeout(() => { this.reset(); }, 30)">
           <input type="hidden" name="project_id" value="{{.ID}}">
           <input type="hidden" name="status" value="next">
@@ -225,24 +216,21 @@
             <div style="display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap;">
               <button class="btn-small" 
                       hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "next"}' hx-swap="none" 
-                      hx-get="/review/step/3" hx-target="#main-content-pane" 
                       style="background-color: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); font-weight: 600;">
                 今週やる (Next)
               </button>
               <button class="btn-small" 
                       hx-post="/review/items/{{.ID}}/reviewed" hx-swap="none" 
-                      hx-get="/review/step/3" hx-target="#main-content-pane" 
                       title="引き続き待機または保留として点検日を更新">
                 引き続き保留
               </button>
               <button class="btn-small" 
-                      hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "done"}' hx-swap="none" 
-                      hx-get="/review/step/3" hx-target="#main-content-pane">
+                      hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "done"}' hx-swap="none">
                 完了
               </button>
               <button class="btn-small" 
                       hx-delete="/items/{{.ID}}" hx-swap="none" 
-                      hx-get="/review/step/3" hx-target="#main-content-pane" 
+                      hx-confirm="このアイテムを完全に削除しますか？"
                       style="color: var(--md-sys-color-error);">
                 削除
               </button>
