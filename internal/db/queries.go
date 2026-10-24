@@ -109,12 +109,11 @@ func GetSidebarCounts(db *sql.DB) (model.SidebarCounts, error) {
 		}
 	}
 
-	// Next Action件数は、開始日が未来（Tickler / 待機中）のものを除いた実効タスク数をカウント
+	// Next Action件数は、item_state ビューの is_available = 1（開始日が未来のものを除き、順次プロジェクトで待機中のタスクも除いた実行可能タスク）をカウント
 	_ = db.QueryRow(`
 		SELECT COUNT(*) 
-		FROM items 
-		WHERE status = 'next' 
-		  AND (start_date IS NULL OR start_date = '' OR start_date <= date('now', 'localtime'))
+		FROM item_state 
+		WHERE is_available = 1
 	`).Scan(&counts.Next)
 
 	// Scheduled (期限・予定): 期限超過または今日期限のタスク件数（赤色バッジ用）
@@ -143,12 +142,13 @@ func GetSidebarCounts(db *sql.DB) (model.SidebarCounts, error) {
 	_ = db.QueryRow(`SELECT COUNT(*) FROM projects WHERE status = 'done'`).Scan(&counts.DoneProjects)
 	_ = db.QueryRow(`SELECT COUNT(*) FROM projects WHERE status = 'someday'`).Scan(&counts.SomedayProjects)
 
-	// 止まっているプロジェクト（Next Actionが0件のアクティブプロジェクト）
+	// 止まっているプロジェクト（実行可能なNext Actionが0件 かつ Waitingも0件のアクティブプロジェクト）
 	_ = db.QueryRow(`
 		SELECT COUNT(*) 
 		FROM projects p 
 		WHERE p.status = 'active' 
-		  AND (SELECT COUNT(*) FROM items i WHERE i.project_id = p.id AND i.status = 'next' AND (i.start_date IS NULL OR i.start_date = '' OR i.start_date <= date('now', 'localtime'))) = 0
+		  AND (SELECT COUNT(*) FROM items i JOIN item_state s ON i.id = s.id WHERE i.project_id = p.id AND s.is_available = 1) = 0
+		  AND (SELECT COUNT(*) FROM items i WHERE i.project_id = p.id AND i.status = 'waiting') = 0
 	`).Scan(&counts.StalledProjects)
 
 	return counts, nil
@@ -167,9 +167,8 @@ func GetItems(db *sql.DB, filter model.ItemFilter) ([]model.Item, error) {
 				args = append(args, *filter.ProjectID)
 			}
 		} else if filter.View == "next" {
-			conditions = append(conditions, "i.status = 'next'")
-			// 開始日が未来のタスクは Next Actions リストからは非表示（指定日に自動浮上）
-			conditions = append(conditions, "(i.start_date IS NULL OR i.start_date = '' OR i.start_date <= date('now', 'localtime'))")
+			// item_state 導出ビューにより、status='next' かつ未来開始日除外かつ順次実行で未ブロックのもの
+			conditions = append(conditions, "s.is_available = 1")
 		} else if filter.View == "scheduled" {
 			// 期限・予定ビュー: 未完了かつ（期日がある、または未来の開始日待ち）
 			conditions = append(conditions, "i.status != 'done'")
@@ -209,17 +208,20 @@ func GetItems(db *sql.DB, filter model.ItemFilter) ([]model.Item, error) {
 	case "done":
 		orderBy = "i.updated_at DESC"
 	case "project":
-		orderBy = "CASE i.status WHEN 'next' THEN 1 WHEN 'inbox' THEN 2 WHEN 'waiting' THEN 3 WHEN 'someday' THEN 4 WHEN 'reference' THEN 5 ELSE 6 END, i.created_at DESC"
+		// プロジェクトビュー: ステータス順（Inbox → Next → Waiting → Someday → Reference → Done）、各ステータス内は手動順 (sort_order ASC, id ASC)
+		orderBy = "CASE i.status WHEN 'inbox' THEN 1 WHEN 'next' THEN 2 WHEN 'waiting' THEN 3 WHEN 'someday' THEN 4 WHEN 'reference' THEN 5 ELSE 6 END, i.sort_order ASC, i.id ASC"
 	}
 
 	query := fmt.Sprintf(`
 		SELECT 
 			i.id, i.project_id, COALESCE(p.name, '') AS project_name, 
 			i.title, COALESCE(i.body, '') AS body, i.status, 
+			i.sort_order, COALESCE(s.is_blocked, 0) AS is_blocked,
 			i.start_date, i.due_date, i.recurrence, i.last_reviewed_at, i.created_at, i.updated_at,
 			(SELECT COUNT(*) FROM attachments a WHERE a.item_id = i.id) AS attach_count
 		FROM items i
 		LEFT JOIN projects p ON i.project_id = p.id
+		LEFT JOIN item_state s ON i.id = s.id
 		%s
 		ORDER BY %s
 	`, whereClause, orderBy)
@@ -241,6 +243,7 @@ func GetItems(db *sql.DB, filter model.ItemFilter) ([]model.Item, error) {
 		err := rows.Scan(
 			&it.ID, &pID, &it.ProjectName,
 			&it.Title, &it.Body, &it.Status,
+			&it.SortOrder, &it.IsBlocked,
 			&sDate, &dDate, &it.Recurrence, &lRev,
 			&it.CreatedAt, &it.UpdatedAt,
 			&it.AttachCount,
@@ -298,9 +301,11 @@ func GetItemByID(db *sql.DB, id int64) (*model.Item, error) {
 		SELECT 
 			i.id, i.project_id, COALESCE(p.name, '') AS project_name, 
 			i.title, COALESCE(i.body, '') AS body, i.status, 
+			i.sort_order, COALESCE(s.is_blocked, 0) AS is_blocked,
 			i.start_date, i.due_date, i.recurrence, i.last_reviewed_at, i.created_at, i.updated_at
 		FROM items i
 		LEFT JOIN projects p ON i.project_id = p.id
+		LEFT JOIN item_state s ON i.id = s.id
 		WHERE i.id = ?
 	`, id)
 
@@ -313,6 +318,7 @@ func GetItemByID(db *sql.DB, id int64) (*model.Item, error) {
 	err := row.Scan(
 		&it.ID, &pID, &it.ProjectName,
 		&it.Title, &it.Body, &it.Status,
+		&it.SortOrder, &it.IsBlocked,
 		&sDate, &dDate, &it.Recurrence, &lRev,
 		&it.CreatedAt, &it.UpdatedAt,
 	)
@@ -383,10 +389,17 @@ func CreateItem(db *sql.DB, item *model.Item) (int64, error) {
 		item.Recurrence = "none"
 	}
 
+	// プロジェクト所属かつ sort_order 未指定の場合は、同一プロジェクト内の最大sort_order+1を採番
+	if item.ProjectID != nil && item.SortOrder == 0 {
+		var maxOrder int
+		_ = db.QueryRow("SELECT COALESCE(MAX(sort_order), 0) FROM items WHERE project_id = ?", *item.ProjectID).Scan(&maxOrder)
+		item.SortOrder = maxOrder + 1
+	}
+
 	res, err := db.Exec(`
-		INSERT INTO items (project_id, title, body, status, start_date, due_date, recurrence)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`, item.ProjectID, item.Title, item.Body, item.Status, item.StartDate, item.DueDate, item.Recurrence)
+		INSERT INTO items (project_id, title, body, status, start_date, due_date, recurrence, sort_order)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`, item.ProjectID, item.Title, item.Body, item.Status, item.StartDate, item.DueDate, item.Recurrence, item.SortOrder)
 	if err != nil {
 		return 0, err
 	}
@@ -396,6 +409,12 @@ func CreateItem(db *sql.DB, item *model.Item) (int64, error) {
 		return 0, err
 	}
 	item.ID = id
+
+	// 単発アイテム等で sort_order が 0 の場合は、自身の id をデフォルトの順序値として設定
+	if item.SortOrder == 0 {
+		_, _ = db.Exec("UPDATE items SET sort_order = ? WHERE id = ?", id, id)
+		item.SortOrder = int(id)
+	}
 
 	// Context の保存
 	for _, ctx := range item.Contexts {
@@ -407,11 +426,24 @@ func CreateItem(db *sql.DB, item *model.Item) (int64, error) {
 
 // UpdateItem はアイテムの詳細情報を更新します
 func UpdateItem(db *sql.DB, item *model.Item) error {
+	// プロジェクト移動時は、移動先プロジェクトの末尾に sort_order を再割り当て
+	if item.ProjectID != nil {
+		var oldProjectID sql.NullInt64
+		_ = db.QueryRow("SELECT project_id FROM items WHERE id = ?", item.ID).Scan(&oldProjectID)
+		if !oldProjectID.Valid || oldProjectID.Int64 != *item.ProjectID {
+			var maxOrder int
+			_ = db.QueryRow("SELECT COALESCE(MAX(sort_order), 0) FROM items WHERE project_id = ?", *item.ProjectID).Scan(&maxOrder)
+			item.SortOrder = maxOrder + 1
+		}
+	}
+
 	_, err := db.Exec(`
 		UPDATE items
-		SET project_id = ?, title = ?, body = ?, status = ?, start_date = ?, due_date = ?, recurrence = ?, updated_at = CURRENT_TIMESTAMP
+		SET project_id = ?, title = ?, body = ?, status = ?, start_date = ?, due_date = ?, recurrence = ?,
+		    sort_order = CASE WHEN ? > 0 THEN ? ELSE sort_order END,
+		    updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
-	`, item.ProjectID, item.Title, item.Body, item.Status, item.StartDate, item.DueDate, item.Recurrence, item.ID)
+	`, item.ProjectID, item.Title, item.Body, item.Status, item.StartDate, item.DueDate, item.Recurrence, item.SortOrder, item.SortOrder, item.ID)
 	return err
 }
 
@@ -436,12 +468,13 @@ func UpdateItemStatus(db *sql.DB, id int64, newStatus string) (*model.Item, erro
 			nextStart = &ns
 		}
 
-		// 次回インスタンスを生成
+		// 次回インスタンスを生成（元タスクの sort_order を引き継ぎ、順次プロジェクト内での位置を保持）
 		nextItem := &model.Item{
 			ProjectID:  it.ProjectID,
 			Title:      it.Title,
 			Body:       it.Body,
 			Status:     "next",
+			SortOrder:  it.SortOrder,
 			StartDate:  nextStart,
 			DueDate:    &nextDue,
 			Recurrence: it.Recurrence,
@@ -492,13 +525,14 @@ func ToggleItemContext(db *sql.DB, itemID int64, contextID int64) error {
 
 // Projects Queries
 
-// GetProjects はステータス別にプロジェクト一覧（Next Action数付き）を取得します
+// GetProjects はステータス別にプロジェクト一覧（実行可能なNext Action数、Waiting数付き）を取得します
 func GetProjects(db *sql.DB, status string) ([]model.Project, error) {
 	query := `
 		SELECT 
-			p.id, p.name, COALESCE(p.description, ''), p.status, 
+			p.id, p.name, COALESCE(p.description, ''), p.status, COALESCE(p.type, 'parallel') AS type,
 			p.last_reviewed_at, p.created_at, p.updated_at,
-			(SELECT COUNT(*) FROM items i WHERE i.project_id = p.id AND i.status = 'next') AS next_action_count,
+			(SELECT COUNT(*) FROM items i JOIN item_state s ON i.id = s.id WHERE i.project_id = p.id AND s.is_available = 1) AS next_action_count,
+			(SELECT COUNT(*) FROM items i WHERE i.project_id = p.id AND i.status = 'waiting') AS waiting_count,
 			(SELECT COUNT(*) FROM items i WHERE i.project_id = p.id) AS total_item_count
 		FROM projects p
 	`
@@ -521,9 +555,9 @@ func GetProjects(db *sql.DB, status string) ([]model.Project, error) {
 		var p model.Project
 		var lRev sql.NullTime
 		err := rows.Scan(
-			&p.ID, &p.Name, &p.Description, &p.Status,
+			&p.ID, &p.Name, &p.Description, &p.Status, &p.Type,
 			&lRev, &p.CreatedAt, &p.UpdatedAt,
-			&p.NextActionCount, &p.TotalItemCount,
+			&p.NextActionCount, &p.WaitingCount, &p.TotalItemCount,
 		)
 		if err != nil {
 			return nil, err
@@ -540,9 +574,10 @@ func GetProjects(db *sql.DB, status string) ([]model.Project, error) {
 func GetProjectByID(db *sql.DB, id int64) (*model.Project, error) {
 	row := db.QueryRow(`
 		SELECT 
-			p.id, p.name, COALESCE(p.description, ''), p.status, 
+			p.id, p.name, COALESCE(p.description, ''), p.status, COALESCE(p.type, 'parallel') AS type,
 			p.last_reviewed_at, p.created_at, p.updated_at,
-			(SELECT COUNT(*) FROM items i WHERE i.project_id = p.id AND i.status = 'next') AS next_action_count,
+			(SELECT COUNT(*) FROM items i JOIN item_state s ON i.id = s.id WHERE i.project_id = p.id AND s.is_available = 1) AS next_action_count,
+			(SELECT COUNT(*) FROM items i WHERE i.project_id = p.id AND i.status = 'waiting') AS waiting_count,
 			(SELECT COUNT(*) FROM items i WHERE i.project_id = p.id) AS total_item_count
 		FROM projects p
 		WHERE p.id = ?
@@ -551,9 +586,9 @@ func GetProjectByID(db *sql.DB, id int64) (*model.Project, error) {
 	var p model.Project
 	var lRev sql.NullTime
 	err := row.Scan(
-		&p.ID, &p.Name, &p.Description, &p.Status,
+		&p.ID, &p.Name, &p.Description, &p.Status, &p.Type,
 		&lRev, &p.CreatedAt, &p.UpdatedAt,
-		&p.NextActionCount, &p.TotalItemCount,
+		&p.NextActionCount, &p.WaitingCount, &p.TotalItemCount,
 	)
 	if err != nil {
 		return nil, err
@@ -569,10 +604,13 @@ func CreateProject(db *sql.DB, p *model.Project) (int64, error) {
 	if p.Status == "" {
 		p.Status = "active"
 	}
+	if p.Type == "" {
+		p.Type = "parallel"
+	}
 	res, err := db.Exec(`
-		INSERT INTO projects (name, description, status)
-		VALUES (?, ?, ?)
-	`, p.Name, p.Description, p.Status)
+		INSERT INTO projects (name, description, status, type)
+		VALUES (?, ?, ?, ?)
+	`, p.Name, p.Description, p.Status, p.Type)
 	if err != nil {
 		return 0, err
 	}
@@ -581,12 +619,114 @@ func CreateProject(db *sql.DB, p *model.Project) (int64, error) {
 
 // UpdateProject はプロジェクト情報を更新します
 func UpdateProject(db *sql.DB, p *model.Project) error {
+	typeClause := ""
+	args := []interface{}{p.Name, p.Description, p.Status}
+	if p.Type != "" {
+		typeClause = ", type = ?"
+		args = append(args, p.Type)
+	}
+	args = append(args, p.ID)
+
+	query := fmt.Sprintf(`
+		UPDATE projects
+		SET name = ?, description = ?, status = ?%s, updated_at = CURRENT_TIMESTAMP
+		WHERE id = ?
+	`, typeClause)
+	_, err := db.Exec(query, args...)
+	return err
+}
+
+// UpdateProjectType はプロジェクトの実行種別 ('parallel' または 'sequential') を更新します
+func UpdateProjectType(db *sql.DB, id int64, projectType string) error {
+	if projectType != "parallel" && projectType != "sequential" {
+		return fmt.Errorf("invalid project type: %s", projectType)
+	}
 	_, err := db.Exec(`
 		UPDATE projects
-		SET name = ?, description = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+		SET type = ?, updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
-	`, p.Name, p.Description, p.Status, p.ID)
+	`, projectType, id)
 	return err
+}
+
+// MoveItem は指定アイテムをプロジェクト内の並び順で上(up)または下(down)へ移動します
+func MoveItem(db *sql.DB, id int64, dir string) error {
+	if dir != "up" && dir != "down" {
+		return fmt.Errorf("invalid direction: %s", dir)
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var projectID sql.NullInt64
+	err = tx.QueryRow("SELECT project_id FROM items WHERE id = ?", id).Scan(&projectID)
+	if err != nil {
+		return err
+	}
+	if !projectID.Valid {
+		return fmt.Errorf("item does not belong to a project")
+	}
+
+	// プロジェクト内の全アイテムを sort_order ASC, id ASC で取得
+	rows, err := tx.Query(`
+		SELECT id 
+		FROM items 
+		WHERE project_id = ? 
+		ORDER BY sort_order ASC, id ASC
+	`, projectID.Int64)
+	if err != nil {
+		return err
+	}
+	var itemIDs []int64
+	for rows.Next() {
+		var itID int64
+		if err := rows.Scan(&itID); err != nil {
+			rows.Close()
+			return err
+		}
+		itemIDs = append(itemIDs, itID)
+	}
+	rows.Close()
+
+	targetIdx := -1
+	for i, itID := range itemIDs {
+		if itID == id {
+			targetIdx = i
+			break
+		}
+	}
+	if targetIdx == -1 {
+		return fmt.Errorf("item not found in project items")
+	}
+
+	swapIdx := -1
+	if dir == "up" && targetIdx > 0 {
+		swapIdx = targetIdx - 1
+	} else if dir == "down" && targetIdx < len(itemIDs)-1 {
+		swapIdx = targetIdx + 1
+	}
+
+	if swapIdx != -1 {
+		itemIDs[targetIdx], itemIDs[swapIdx] = itemIDs[swapIdx], itemIDs[targetIdx]
+	}
+
+	// 1..N で全要素の sort_order を一括正規化更新
+	stmt, err := tx.Prepare("UPDATE items SET sort_order = ? WHERE id = ?")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	for i, itID := range itemIDs {
+		if _, err := stmt.Exec(i+1, itID); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
 }
 
 // UpdateProjectStatus はプロジェクトのステータスを変更します
@@ -815,18 +955,17 @@ func GetInboxItems(db *sql.DB) ([]model.Item, error) {
 	return GetItems(db, model.ItemFilter{View: "inbox"})
 }
 
-// GetActiveProjectsForReview は週次レビュー Step 2 用に、Next Action数昇順でアクティブプロジェクト一覧を取得します
+// GetActiveProjectsForReview は週次レビュー Step 2 用に、実行可能なNext Action数昇順でアクティブプロジェクト一覧を取得します
 func GetActiveProjectsForReview(db *sql.DB) ([]model.Project, error) {
 	rows, err := db.Query(`
 		SELECT 
-			p.id, p.name, COALESCE(p.description, ''), p.status, 
+			p.id, p.name, COALESCE(p.description, ''), p.status, COALESCE(p.type, 'parallel') AS type,
 			p.last_reviewed_at, p.created_at, p.updated_at,
-			COUNT(i.id) AS next_action_count,
+			(SELECT COUNT(*) FROM items i JOIN item_state s ON i.id = s.id WHERE i.project_id = p.id AND s.is_available = 1) AS next_action_count,
+			(SELECT COUNT(*) FROM items i WHERE i.project_id = p.id AND i.status = 'waiting') AS waiting_count,
 			(SELECT COUNT(*) FROM items it WHERE it.project_id = p.id) AS total_item_count
 		FROM projects p
-		LEFT JOIN items i ON p.id = i.project_id AND i.status = 'next'
 		WHERE p.status = 'active'
-		GROUP BY p.id
 		ORDER BY next_action_count ASC, p.id ASC
 	`)
 	if err != nil {
@@ -839,9 +978,9 @@ func GetActiveProjectsForReview(db *sql.DB) ([]model.Project, error) {
 		var p model.Project
 		var lRev sql.NullTime
 		if err := rows.Scan(
-			&p.ID, &p.Name, &p.Description, &p.Status,
+			&p.ID, &p.Name, &p.Description, &p.Status, &p.Type,
 			&lRev, &p.CreatedAt, &p.UpdatedAt,
-			&p.NextActionCount, &p.TotalItemCount,
+			&p.NextActionCount, &p.WaitingCount, &p.TotalItemCount,
 		); err != nil {
 			return nil, err
 		}

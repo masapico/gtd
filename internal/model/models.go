@@ -13,16 +13,28 @@ type Project struct {
 	Name            string     `json:"name"`
 	Description     string     `json:"description"`
 	Status          string     `json:"status"` // 'active', 'someday', 'done'
+	Type            string     `json:"type"`   // 'parallel', 'sequential'
 	LastReviewedAt  *time.Time `json:"last_reviewed_at"`
 	CreatedAt       time.Time  `json:"created_at"`
 	UpdatedAt       time.Time  `json:"updated_at"`
-	NextActionCount int        `json:"next_action_count"`
+	NextActionCount int        `json:"next_action_count"` // 実行可能なNext Action数 (is_available=1)
+	WaitingCount    int        `json:"waiting_count"`     // 連絡待ち・他者待ちタスク数
 	TotalItemCount  int        `json:"total_item_count"`
 }
 
-// IsStalled は、アクティブなのにNext Actionが0件のプロジェクトかどうかを判定します
+// IsSequential はプロジェクトが順次実行タイプかを返します
+func (p Project) IsSequential() bool {
+	return p.Type == "sequential"
+}
+
+// IsStalled は、アクティブなのに実行可能なNext ActionもWaitingも0件の停滞プロジェクトかを判定します
 func (p Project) IsStalled() bool {
-	return p.Status == "active" && p.NextActionCount == 0
+	return p.Status == "active" && p.NextActionCount == 0 && p.WaitingCount == 0
+}
+
+// IsWaitingOnly は、実行可能なNext ActionはないがWaitingが存在し、ボールが相手側にある状態かを判定します
+func (p Project) IsWaitingOnly() bool {
+	return p.Status == "active" && p.NextActionCount == 0 && p.WaitingCount > 0
 }
 
 // Context は場所・状況・相手のタグを表します（例: @PC, @会議）
@@ -50,6 +62,9 @@ type Item struct {
 	Title          string       `json:"title"`
 	Body           string       `json:"body"`
 	Status         string       `json:"status"`     // 'inbox', 'next', 'waiting', 'someday', 'reference', 'done'
+	SortOrder      int          `json:"sort_order"` // プロジェクト内での手動並び順
+	IsBlocked      bool         `json:"is_blocked"` // 順次プロジェクトで前のステップ未完了のため待機中
+	StepNo         int          `json:"step_no"`    // 順次プロジェクト内でのステップ番号（表示用）
 	StartDate      *string      `json:"start_date"` // 開始日（Tickler / Defer Date）
 	DueDate        *string      `json:"due_date"`
 	Recurrence     string       `json:"recurrence"` // 'none', 'daily', 'weekdays', 'weekly', 'monthly', 'yearly'
@@ -355,25 +370,31 @@ type ScheduledSection struct {
 
 // ProjectSection はプロジェクトビューでアイテムをステータス別（Next, Waiting, Someday, Done）にグループ表示するための構造体です
 type ProjectSection struct {
-	ID             string `json:"id"`          // 'next', 'waiting', 'someday', 'done'
-	Title          string `json:"title"`       // 表示タイトル（例: 'Next Actions'）
-	Icon           string `json:"icon"`        // 'next', 'waiting', 'someday', 'done'
+	ID             string `json:"id"`          // 'next', 'waiting', 'someday', 'reference', 'done', 'sequential_steps', 'inbox'
+	Title          string `json:"title"`       // 表示タイトル（例: 'Next Actions', 'ステップ (順次実行)'）
+	Icon           string `json:"icon"`        // 'next', 'waiting', 'someday', 'reference', 'done', 'sequential', 'inbox'
 	BadgeClass     string `json:"badge_class"` // 'badge-next', 'badge-waiting', etc.
 	Items          []Item `json:"items"`
 	Count          int    `json:"count"`
 	Collapsed      bool   `json:"collapsed"`       // 初期状態で折りたたむか（Done等）
 	AddPlaceholder string `json:"add_placeholder"` // インライン追加プレースホルダー
+	Sequential     bool   `json:"sequential"`      // 順次プロジェクトのステップセクションか
 }
 
 // ProjectStats はプロジェクト内タスクのステータス別件数と進捗率を保持します
 type ProjectStats struct {
-	TotalCount   int
-	DoneCount    int
-	NextCount    int
-	WaitingCount int
-	SomedayCount int
-	Progress     int  // 0〜100%
-	IsStalled    bool // activeかつNextActionが0件
+	TotalCount     int
+	DoneCount      int
+	NextCount      int
+	WaitingCount   int
+	SomedayCount   int
+	ReferenceCount int
+	InboxCount     int
+	AvailableCount int // 実行可能なNextAction数
+	BlockedCount   int // ブロック中のタスク数
+	Progress       int // 0〜100%
+	IsStalled      bool // activeかつ実行可能Next=0かつWaiting=0
+	IsWaitingOnly  bool // activeかつ実行可能Next=0だがWaiting>0
 }
 
 // ItemFilter は中央リスト表示時の絞り込み条件です

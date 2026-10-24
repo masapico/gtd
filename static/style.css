@@ -945,6 +945,7 @@ body {
 }
 .mini-add-input {
   flex: 1;
+  min-width: 0;
   padding: 3px 6px;
   font-size: 0.75rem;
   border: 1px solid var(--md-sys-color-outline-variant);
@@ -960,6 +961,53 @@ body {
   border-radius: var(--md-shape-xs);
   cursor: pointer;
   white-space: nowrap;
+}
+
+/* Sidebar Project Add Form (2-row compact layout to fit sidebar perfectly) */
+.sidebar-project-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px 2px;
+  margin-top: 4px;
+}
+
+.sidebar-project-add-form .mini-add-input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 26px;
+}
+
+.sidebar-project-add-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sidebar-project-type-select {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  padding: 1px 6px;
+  font-size: 0.72rem;
+  font-family: inherit;
+  color: var(--md-sys-color-on-surface);
+  background-color: var(--md-sys-color-surface-container-lowest);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-shape-xs);
+  outline: none;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.sidebar-project-type-select:focus {
+  border-color: var(--md-sys-color-primary);
+}
+
+.sidebar-project-add-actions .mini-add-btn {
+  flex-shrink: 0;
+  height: 24px;
+  padding: 0 10px;
 }
 
 /* --- Center Pane: Main Content List --- */
@@ -3246,5 +3294,195 @@ body {
     background-color: var(--md-sys-color-surface-container);
   }
 }
+
+/* ==========================================================================
+   Project Execution Mode (Parallel / Sequential) & Step Ordering
+   ========================================================================== */
+
+/* Project Type Toggle in Header */
+.project-type-toggle {
+  display: inline-flex;
+  align-items: center;
+  background-color: var(--md-sys-color-surface-container-high);
+  border-radius: var(--md-shape-sm);
+  padding: 2px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.project-type-toggle .type-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border: none;
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.project-type-toggle .type-btn:hover {
+  background-color: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-on-surface);
+}
+
+.project-type-toggle .type-btn.active {
+  background-color: var(--md-sys-color-surface-container-lowest);
+  color: var(--md-sys-color-primary);
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+/* Project Waiting Banner */
+.project-waiting-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--md-shape-sm);
+  background-color: #f0f9ff;
+  border: 1px solid #bae6fd;
+  color: #0369a1;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+/* Step Number Badge */
+.step-no-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+
+.step-no-badge.current {
+  background-color: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+  border: 1.5px solid var(--md-sys-color-primary);
+}
+
+.step-no-badge.blocked {
+  background-color: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-outline);
+  border: 1px dashed var(--md-sys-color-outline);
+}
+
+/* Blocked Card Styles */
+.item-card.is-blocked {
+  opacity: 0.72;
+  background-color: var(--md-sys-color-surface-container-low);
+  border-left: 3px solid var(--md-sys-color-outline-variant);
+}
+
+.item-card.is-blocked:hover {
+  opacity: 0.95;
+}
+
+.item-card.is-current-step {
+  border-left: 3px solid var(--md-sys-color-primary);
+  background-color: var(--md-sys-color-surface-container-lowest);
+}
+
+/* Tag Blocked Badge */
+.meta-tag.tag-blocked {
+  background-color: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  font-size: 0.7rem;
+  padding: 1px 5px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* Card Right Actions Layout */
+.item-card-right-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Order Controls (Up / Down) */
+.item-order-controls {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  background-color: var(--md-sys-color-surface-container);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-shape-sm);
+  padding: 2px;
+}
+
+.order-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 20px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.order-btn:hover {
+  background-color: var(--md-sys-color-primary-container);
+  color: var(--md-sys-color-on-primary-container);
+}
+
+.order-btn:active {
+  transform: scale(0.92);
+}
+
+/* Inbox Triage Buttons */
+.inbox-triage-btns {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.btn-micro {
+  padding: 2px 6px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 4px;
+  background-color: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-micro:hover {
+  background-color: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+}
+
+.btn-micro.next {
+  color: #1a73e8;
+  border-color: #c2e7ff;
+  background-color: #edf5fd;
+}
+
+.btn-micro.next:hover {
+  background-color: #d3e3fd;
+}
+
 
 

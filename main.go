@@ -163,6 +163,7 @@ func setupRouter(h *handler.Handler) *http.ServeMux {
 	mux.HandleFunc("PUT /items/{id}", h.UpdateItem)
 	mux.HandleFunc("PATCH /items/{id}/status", h.UpdateItemStatus)
 	mux.HandleFunc("DELETE /items/{id}", h.DeleteItem)
+	mux.HandleFunc("POST /items/{id}/move", h.MoveItem)
 	mux.HandleFunc("POST /items/{id}/contexts/{contextId}/toggle", h.ToggleItemContext)
 	mux.HandleFunc("POST /items/{id}/attachments", h.AddAttachment)
 	mux.HandleFunc("POST /items/{id}/paste-image", h.PasteImage)
@@ -172,6 +173,7 @@ func setupRouter(h *handler.Handler) *http.ServeMux {
 	mux.HandleFunc("POST /projects", h.CreateProject)
 	mux.HandleFunc("PUT /projects/{id}", h.UpdateProject)
 	mux.HandleFunc("PATCH /projects/{id}/status", h.UpdateProjectStatus)
+	mux.HandleFunc("PATCH /projects/{id}/type", h.UpdateProjectType)
 	mux.HandleFunc("DELETE /projects/{id}", h.DeleteProject)
 
 	// Contexts

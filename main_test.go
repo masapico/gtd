@@ -10,6 +10,7 @@ import (
 
 	"gtd/internal/db"
 	"gtd/internal/handler"
+	"gtd/internal/model"
 )
 
 func TestEmbeddedServer(t *testing.T) {
@@ -144,6 +145,83 @@ func TestEmbeddedServer(t *testing.T) {
 	}
 	if !strings.Contains(jsBody, "saveAlarmFromInput") {
 		t.Errorf("expected saveAlarmFromInput in app.js")
+	}
+}
+
+func TestProjectViewInboxIsolationAndSequential(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "gtd_views.db")
+	imagesDir := filepath.Join(dir, "images")
+
+	database, err := db.InitDB(dbPath)
+	if err != nil {
+		t.Fatalf("InitDB failed: %v", err)
+	}
+	defer database.Close()
+
+	tmpl, err := template.New("").Funcs(handler.TemplateFuncs()).ParseFS(
+		templateFS,
+		"templates/layout.html",
+		"templates/partials/*.html",
+	)
+	if err != nil {
+		t.Fatalf("ParseFS failed: %v", err)
+	}
+
+	h := handler.NewHandler(database, tmpl, imagesDir)
+	mux := setupRouter(h)
+
+	// 1. プロジェクト作成（並列）
+	projID, err := db.CreateProject(database, &model.Project{
+		Name:   "テストプロジェクト",
+		Type:   "parallel",
+		Status: "active",
+	})
+	if err != nil {
+		t.Fatalf("CreateProject failed: %v", err)
+	}
+
+	// 2. アイテム投入: Inbox 1件、Next 1件、Waiting 1件、Done 1件
+	_, _ = db.CreateItem(database, &model.Item{ProjectID: &projID, Title: "Inboxタスク1", Status: "inbox"})
+	_, _ = db.CreateItem(database, &model.Item{ProjectID: &projID, Title: "Nextタスク1", Status: "next"})
+	_, _ = db.CreateItem(database, &model.Item{ProjectID: &projID, Title: "Waitingタスク1", Status: "waiting"})
+	_, _ = db.CreateItem(database, &model.Item{ProjectID: &projID, Title: "Doneタスク1", Status: "done"})
+
+	// 3. プロジェクトビューのHTML取得
+	req := httptest.NewRequest("GET", "/partials/items?project_id=1", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	res := rec.Body.String()
+	if rec.Code != http.StatusOK {
+		t.Fatalf("ServeHTTP returned status %d: %s", rec.Code, res)
+	}
+
+	// 4. 検証: Inboxタスクが「未整理 (Inbox)」セクションに存在し、Nextに混ざらないこと
+	if !strings.Contains(res, "未整理 (Inbox)") {
+		t.Errorf("Expected '未整理 (Inbox)' section in HTML, got:\n%s", res)
+	}
+	if !strings.Contains(res, "Inboxタスク1") {
+		t.Errorf("Expected 'Inboxタスク1' in HTML")
+	}
+
+	// 5. 順次プロジェクトへの変更
+	reqType := httptest.NewRequest("PATCH", "/projects/1/type", strings.NewReader("type=sequential"))
+	reqType.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	recType := httptest.NewRecorder()
+	mux.ServeHTTP(recType, reqType)
+	if recType.Code != http.StatusOK {
+		t.Fatalf("Update project type returned status %d", recType.Code)
+	}
+
+	// 再度HTML取得
+	recSeq := httptest.NewRecorder()
+	mux.ServeHTTP(recSeq, req)
+	resSeq := recSeq.Body.String()
+
+	// 順次プロジェクトでは「ステップ (順次実行)」セクションが表示されること
+	if !strings.Contains(resSeq, "ステップ (順次実行)") {
+		t.Errorf("Expected 'ステップ (順次実行)' section in sequential project HTML, got:\n%s", resSeq)
 	}
 }
 

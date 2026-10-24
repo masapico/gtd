@@ -16,51 +16,60 @@ GTD（Getting Things Done）の本来の目的である\*\*「頭の中を空に
 
 ## 2\. データベース設計 (SQLite)
 
-\-- 1\. プロジェクト（複数の行動を要するゴール）
-
+-- 1. プロジェクト（複数の行動を要するゴール）
 CREATE TABLE projects (
-
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-
     name TEXT NOT NULL,
-
     description TEXT,
-
-    status TEXT NOT NULL DEFAULT 'active', \-- 'active', 'someday', 'done'
-
-    last\_reviewed\_at DATETIME,
-
-    created\_at DATETIME DEFAULT CURRENT\_TIMESTAMP,
-
-    updated\_at DATETIME DEFAULT CURRENT\_TIMESTAMP
-
+    status TEXT NOT NULL DEFAULT 'active', -- 'active', 'someday', 'done'
+    type TEXT NOT NULL DEFAULT 'parallel', -- 'parallel'(並列実行), 'sequential'(順次実行)
+    last_reviewed_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
-\-- 2\. アイテム（Inbox / タスク / メモ の統合モデル）
-
+-- 2. アイテム（Inbox / タスク / メモ の統合モデル）
 CREATE TABLE items (
-
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-
-    project\_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
-
+    project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
     title TEXT NOT NULL,
-
-    body TEXT, \-- 詳細メモ（プレーンテキスト / 簡易Markdown）
-
+    body TEXT, -- 詳細メモ（プレーンテキスト / 簡易Markdown）
     status TEXT NOT NULL DEFAULT 'inbox', 
-
-    \-- status: 'inbox'(未整理), 'next'(次にやる), 'waiting'(待ち), 'someday'(いつか), 'reference'(資料・メモ), 'done'(完了)
-
-    due\_date DATE, \-- 厳密な締切があるもののみ設定
-
-    last\_reviewed\_at DATETIME,
-
-    created\_at DATETIME DEFAULT CURRENT\_TIMESTAMP,
-
-    updated\_at DATETIME DEFAULT CURRENT\_TIMESTAMP
-
+    -- status: 'inbox'(未整理), 'next'(次にやる), 'waiting'(待ち), 'someday'(いつか), 'reference'(資料・メモ), 'done'(完了)
+    sort_order INTEGER NOT NULL DEFAULT 0, -- プロジェクト内の手動順序
+    start_date DATE, -- 開始日（Tickler / Defer Date）
+    due_date DATE, -- 厳密な締切があるもののみ設定
+    recurrence TEXT NOT NULL DEFAULT 'none',
+    last_reviewed_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 3. アイテム状態導出ビュー（順次実行ブロック判定・実行可能判定の単一の情報源）
+CREATE VIEW item_state AS
+SELECT 
+    i.id AS id,
+    CASE WHEN p.type = 'sequential'
+          AND i.status IN ('next', 'waiting')
+          AND EXISTS (
+            SELECT 1 FROM items j 
+            WHERE j.project_id = i.project_id 
+              AND j.status IN ('next', 'waiting') 
+              AND (j.sort_order < i.sort_order OR (j.sort_order = i.sort_order AND j.id < i.id))
+          ) THEN 1 ELSE 0 END AS is_blocked,
+    CASE WHEN i.status = 'next'
+          AND (i.start_date IS NULL OR i.start_date = '' OR i.start_date <= date('now', 'localtime'))
+          AND NOT (
+            p.type = 'sequential'
+            AND EXISTS (
+                SELECT 1 FROM items j 
+                WHERE j.project_id = i.project_id 
+                  AND j.status IN ('next', 'waiting') 
+                  AND (j.sort_order < i.sort_order OR (j.sort_order = i.sort_order AND j.id < i.id))
+            )
+          ) THEN 1 ELSE 0 END AS is_available
+FROM items i
+LEFT JOIN projects p ON p.id = i.project_id;
 
 \-- 3\. コンテキスト（場所・状況・相手のタグ）
 

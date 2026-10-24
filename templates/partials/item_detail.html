@@ -56,6 +56,15 @@
     </div>
   </div>
 
+  {{if .Item.IsBlocked}}
+    <div class="detail-blocked-banner" style="margin: 0 16px 8px; padding: 8px 12px; background-color: #f1f5f9; border-left: 3px solid #64748b; border-radius: 4px; display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: #334155;">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="color: #64748b; flex-shrink: 0;">
+        <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
+      </svg>
+      <div>このタスクは順次プロジェクトの<strong>待機中ステップ</strong>です。前のステップが完了すると自動的に実行可能になります（ステータスはNextのままです）。</div>
+    </div>
+  {{end}}
+
   <div class="detail-body">
     <!-- Status Selector -->
     <div class="form-group">

@@ -22,10 +22,16 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	pType := r.FormValue("type")
+	if pType != "sequential" {
+		pType = "parallel"
+	}
+
 	p := &model.Project{
 		Name:        name,
 		Description: strings.TrimSpace(r.FormValue("description")),
 		Status:      "active",
+		Type:        pType,
 	}
 
 	_, err := db.CreateProject(h.DB, p)
@@ -111,6 +117,35 @@ func (h *Handler) UpdateProjectStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := db.UpdateProjectStatus(h.DB, id, status); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	h.Trigger(w, "projectChanged", "itemChanged")
+	w.WriteHeader(http.StatusOK)
+}
+
+// UpdateProjectType はプロジェクトの実行種別（parallel または sequential）を変更します
+func (h *Handler) UpdateProjectType(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid project ID", http.StatusBadRequest)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	projectType := r.FormValue("type")
+	if projectType != "parallel" && projectType != "sequential" {
+		http.Error(w, "Invalid project type (must be 'parallel' or 'sequential')", http.StatusBadRequest)
+		return
+	}
+
+	if err := db.UpdateProjectType(h.DB, id, projectType); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

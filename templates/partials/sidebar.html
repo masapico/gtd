@@ -185,8 +185,14 @@
   {{end}}
 
   <!-- Mini Add Project Form -->
-  <form class="mini-add-form" hx-post="/projects" hx-swap="none" onsubmit="setTimeout(() => { this.reset(); }, 30)">
+  <form class="sidebar-project-add-form" hx-post="/projects" hx-swap="none" onsubmit="setTimeout(() => { this.reset(); }, 30)">
     <input class="mini-add-input" name="name" placeholder="+ プロジェクト名" required autocomplete="off">
-    <button class="mini-add-btn" type="submit">作成</button>
+    <div class="sidebar-project-add-actions">
+      <select name="type" class="sidebar-project-type-select" title="プロジェクトの実行タイプ">
+        <option value="parallel">並列</option>
+        <option value="sequential">順次</option>
+      </select>
+      <button class="mini-add-btn" type="submit">作成</button>
+    </div>
   </form>
 </div>

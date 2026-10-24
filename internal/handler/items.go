@@ -310,6 +310,38 @@ func (h *Handler) DeleteItem(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// MoveItem はタスクの順序を上(up)または下(down)へ移動させます
+func (h *Handler) MoveItem(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid item ID", http.StatusBadRequest)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	dir := r.FormValue("dir")
+	if dir == "" {
+		dir = r.URL.Query().Get("dir")
+	}
+	if dir != "up" && dir != "down" {
+		http.Error(w, "Invalid direction (must be 'up' or 'down')", http.StatusBadRequest)
+		return
+	}
+
+	if err := db.MoveItem(h.DB, id, dir); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	h.Trigger(w, "itemChanged")
+	w.WriteHeader(http.StatusOK)
+}
+
 // CreateContext は新しいContextタグを追加します
 func (h *Handler) CreateContext(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {

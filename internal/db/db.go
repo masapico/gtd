@@ -128,9 +128,59 @@ func migrateSchema(db *sql.DB) error {
 		return err
 	}
 
-	// カラム存在保証後にインデックス作成
+	// 既存DBへの sort_order カラム追加マイグレーション
+	if err := addColumnIfNotExists(db, "items", "sort_order", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
+
+	// 既存DBへの projects.type カラム追加マイグレーション ('parallel', 'sequential')
+	if err := addColumnIfNotExists(db, "projects", "type", "TEXT NOT NULL DEFAULT 'parallel'"); err != nil {
+		return err
+	}
+
+	// 既存アイテムの初期 sort_order を作成順（id）で設定
+	if _, err := db.Exec("UPDATE items SET sort_order = id WHERE sort_order = 0;"); err != nil {
+		return err
+	}
+
+	// インデックス作成
 	if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_items_start_date ON items(start_date);"); err != nil {
 		return err
+	}
+	if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_items_project_order ON items(project_id, sort_order);"); err != nil {
+		return err
+	}
+
+	// item_state 導出ビューの作成（起動毎に最新ロジックを反映）
+	viewSQL := `
+	DROP VIEW IF EXISTS item_state;
+	CREATE VIEW item_state AS
+	SELECT 
+		i.id AS id,
+		CASE WHEN p.type = 'sequential'
+			  AND i.status IN ('next', 'waiting')
+			  AND EXISTS (
+				SELECT 1 FROM items j 
+				WHERE j.project_id = i.project_id 
+				  AND j.status IN ('next', 'waiting') 
+				  AND (j.sort_order < i.sort_order OR (j.sort_order = i.sort_order AND j.id < i.id))
+			  ) THEN 1 ELSE 0 END AS is_blocked,
+		CASE WHEN i.status = 'next'
+			  AND (i.start_date IS NULL OR i.start_date = '' OR i.start_date <= date('now', 'localtime'))
+			  AND NOT (
+				p.type = 'sequential'
+				AND EXISTS (
+					SELECT 1 FROM items j 
+					WHERE j.project_id = i.project_id 
+					  AND j.status IN ('next', 'waiting') 
+					  AND (j.sort_order < i.sort_order OR (j.sort_order = i.sort_order AND j.id < i.id))
+				)
+			  ) THEN 1 ELSE 0 END AS is_available
+	FROM items i
+	LEFT JOIN projects p ON p.id = i.project_id;
+	`
+	if _, err := db.Exec(viewSQL); err != nil {
+		return fmt.Errorf("failed to create item_state view: %w", err)
 	}
 
 	return nil

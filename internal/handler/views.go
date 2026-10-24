@@ -230,66 +230,135 @@ func (h *Handler) buildItemListData(view string, pID *int64, cID *int64, search 
 			description = "複数の行動を要するゴール。"
 		}
 
-		// ステータス別アイテムの分類
-		var nextItems, waitingItems, somedayItems, doneItems []model.Item
+		// ステータス別アイテムの厳密な分類（InboxやReferenceを混同させない）
+		var inboxItems, nextItems, waitingItems, somedayItems, referenceItems, doneItems []model.Item
+		availableCount := 0
+		blockedCount := 0
+
 		for _, it := range items {
 			switch it.Status {
-			case "next", "inbox":
+			case "inbox":
+				inboxItems = append(inboxItems, it)
+			case "next":
 				nextItems = append(nextItems, it)
+				if !it.IsBlocked {
+					availableCount++
+				} else {
+					blockedCount++
+				}
 			case "waiting":
 				waitingItems = append(waitingItems, it)
-			case "someday", "reference":
+				if it.IsBlocked {
+					blockedCount++
+				}
+			case "someday":
 				somedayItems = append(somedayItems, it)
+			case "reference":
+				referenceItems = append(referenceItems, it)
 			case "done":
 				doneItems = append(doneItems, it)
 			default:
-				nextItems = append(nextItems, it)
+				inboxItems = append(inboxItems, it)
+			}
+		}
+
+		isSeq := currentProject != nil && currentProject.IsSequential()
+
+		// 順次プロジェクトの場合、nextとwaitingを統合したステップ列を作成し、ステップ番号を付与
+		var sequentialSteps []model.Item
+		if isSeq {
+			for _, it := range items {
+				if it.Status == "next" || it.Status == "waiting" {
+					it.StepNo = len(sequentialSteps) + 1
+					sequentialSteps = append(sequentialSteps, it)
+				}
 			}
 		}
 
 		totalCount := len(items)
 		doneCount := len(doneItems)
+		// 進捗率は実行対象（Done, Next, Waiting, Inbox）を基準に算出（保留アイデアや資料メモは分母から除外）
+		actionableTotal := doneCount + len(nextItems) + len(waitingItems) + len(inboxItems)
 		progress := 0
-		if totalCount > 0 {
-			progress = int(math.Round(float64(doneCount) / float64(totalCount) * 100.0))
+		if actionableTotal > 0 {
+			progress = int(math.Round(float64(doneCount) / float64(actionableTotal) * 100.0))
 		}
-		isStalled := (currentProject != nil && currentProject.Status == "active" && len(nextItems) == 0)
+
+		isStalled := (currentProject != nil && currentProject.Status == "active" && availableCount == 0 && len(waitingItems) == 0)
+		isWaitingOnly := (currentProject != nil && currentProject.Status == "active" && availableCount == 0 && len(waitingItems) > 0)
 
 		projectStats = model.ProjectStats{
-			TotalCount:   totalCount,
-			DoneCount:    doneCount,
-			NextCount:    len(nextItems),
-			WaitingCount: len(waitingItems),
-			SomedayCount: len(somedayItems),
-			Progress:     progress,
-			IsStalled:    isStalled,
+			TotalCount:     totalCount,
+			DoneCount:      doneCount,
+			NextCount:      len(nextItems),
+			WaitingCount:   len(waitingItems),
+			SomedayCount:   len(somedayItems),
+			ReferenceCount: len(referenceItems),
+			InboxCount:     len(inboxItems),
+			AvailableCount: availableCount,
+			BlockedCount:   blockedCount,
+			Progress:       progress,
+			IsStalled:      isStalled,
+			IsWaitingOnly:  isWaitingOnly,
 		}
 
-		// セクションの構築（itemStatusFilterに応じた絞り込み、空なら全セクション）
-		if itemStatusFilter == "" || itemStatusFilter == "all" || itemStatusFilter == "next" {
+		// 1. Inbox セクション（未整理のタスクがある場合のみ表示、要仕分け）
+		if len(inboxItems) > 0 && (itemStatusFilter == "" || itemStatusFilter == "all" || itemStatusFilter == "inbox") {
 			projectSections = append(projectSections, model.ProjectSection{
-				ID:             "next",
-				Title:          "Next Actions",
-				Icon:           "next",
-				BadgeClass:     "badge-next",
-				Items:          nextItems,
-				Count:          len(nextItems),
+				ID:             "inbox",
+				Title:          "未整理 (Inbox)",
+				Icon:           "inbox",
+				BadgeClass:     "badge-inbox",
+				Items:          inboxItems,
+				Count:          len(inboxItems),
 				Collapsed:      false,
-				AddPlaceholder: "+ このプロジェクトのNext Actionを追加...",
+				AddPlaceholder: "+ プロジェクト用Inboxメモを追加...",
 			})
 		}
-		if itemStatusFilter == "" || itemStatusFilter == "all" || itemStatusFilter == "waiting" {
-			projectSections = append(projectSections, model.ProjectSection{
-				ID:             "waiting",
-				Title:          "Waiting For",
-				Icon:           "waiting",
-				BadgeClass:     "badge-waiting",
-				Items:          waitingItems,
-				Count:          len(waitingItems),
-				Collapsed:      false,
-				AddPlaceholder: "+ 連絡待ち・依頼中のタスクを追加...",
-			})
+
+		// 2. メイン実行セクション（順次プロジェクトなら統合ステップ、並列ならNextとWaitingを別セクション）
+		if isSeq {
+			if itemStatusFilter == "" || itemStatusFilter == "all" || itemStatusFilter == "next" || itemStatusFilter == "waiting" {
+				projectSections = append(projectSections, model.ProjectSection{
+					ID:             "sequential_steps",
+					Title:          "ステップ (順次実行)",
+					Icon:           "sequential",
+					BadgeClass:     "badge-next",
+					Items:          sequentialSteps,
+					Count:          len(sequentialSteps),
+					Collapsed:      false,
+					AddPlaceholder: "+ 次のステップを追加...",
+					Sequential:     true,
+				})
+			}
+		} else {
+			if itemStatusFilter == "" || itemStatusFilter == "all" || itemStatusFilter == "next" {
+				projectSections = append(projectSections, model.ProjectSection{
+					ID:             "next",
+					Title:          "Next Actions",
+					Icon:           "next",
+					BadgeClass:     "badge-next",
+					Items:          nextItems,
+					Count:          len(nextItems),
+					Collapsed:      false,
+					AddPlaceholder: "+ このプロジェクトのNext Actionを追加...",
+				})
+			}
+			if itemStatusFilter == "" || itemStatusFilter == "all" || itemStatusFilter == "waiting" {
+				projectSections = append(projectSections, model.ProjectSection{
+					ID:             "waiting",
+					Title:          "Waiting For",
+					Icon:           "waiting",
+					BadgeClass:     "badge-waiting",
+					Items:          waitingItems,
+					Count:          len(waitingItems),
+					Collapsed:      false,
+					AddPlaceholder: "+ 連絡待ち・依頼中のタスクを追加...",
+				})
+			}
 		}
+
+		// 3. Someday / Ideas
 		if itemStatusFilter == "" || itemStatusFilter == "all" || itemStatusFilter == "someday" {
 			projectSections = append(projectSections, model.ProjectSection{
 				ID:             "someday",
@@ -302,6 +371,22 @@ func (h *Handler) buildItemListData(view string, pID *int64, cID *int64, search 
 				AddPlaceholder: "+ 将来やるタスク・アイデアを追加...",
 			})
 		}
+
+		// 4. References (資料・メモ)
+		if (len(referenceItems) > 0 || itemStatusFilter == "reference") && (itemStatusFilter == "" || itemStatusFilter == "all" || itemStatusFilter == "reference") {
+			projectSections = append(projectSections, model.ProjectSection{
+				ID:             "reference",
+				Title:          "References (資料・メモ)",
+				Icon:           "reference",
+				BadgeClass:     "badge-reference",
+				Items:          referenceItems,
+				Count:          len(referenceItems),
+				Collapsed:      false,
+				AddPlaceholder: "+ 参考資料・メモを追加...",
+			})
+		}
+
+		// 5. 完了済み
 		if itemStatusFilter == "" || itemStatusFilter == "all" || itemStatusFilter == "done" {
 			projectSections = append(projectSections, model.ProjectSection{
 				ID:             "done",
