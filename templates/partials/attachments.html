@@ -46,27 +46,27 @@
               <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
                 <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
               </svg>
-              <span>開く</span>
+              <span style="white-space: nowrap;">開く</span>
             </a>
           {{else if eq .Type "path"}}
             <button type="button" class="btn-small" hx-post="/attachments/{{.ID}}/open" hx-swap="none" title="OSアプリまたはエクスプローラーで開く">
               <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
                 <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
               </svg>
-              <span>開く</span>
+              <span style="white-space: nowrap;">開く</span>
             </button>
-            <button type="button" class="btn-small" onclick="copyToClipboard('{{.Target}}', this)" title="パスをクリップボードにコピー">
+            <button type="button" class="btn-small" style="white-space: nowrap;" onclick="copyToClipboard('{{.Target}}', this)" title="パスをクリップボードにコピー">
               <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
                 <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
               </svg>
-              <span>コピー</span>
+              <span style="white-space: nowrap;">コピー</span>
             </button>
           {{else if eq .Type "image"}}
             <a href="/data/images/{{.Target}}" target="_blank" rel="noopener" class="btn-small" title="拡大表示">
               <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
                 <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
               </svg>
-              <span>拡大</span>
+              <span style="white-space: nowrap;">拡大</span>
             </a>
           {{end}}
 
@@ -98,7 +98,7 @@
         <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
           <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
         </svg>
-        <span>追加</span>
+        <span style="white-space: nowrap;">追加</span>
       </button>
     </div>
   </form>
