@@ -187,7 +187,8 @@ func (h *Handler) UpdateItemStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.Trigger(w, "itemChanged")
-	w.WriteHeader(http.StatusOK)
+	// 詳細ペインを最新データで再描画
+	h.GetItemDetail(w, r)
 }
 
 // ToggleItemContext はアイテムへのContextタグをトグルします

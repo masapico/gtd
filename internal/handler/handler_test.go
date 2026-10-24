@@ -202,6 +202,50 @@ func TestItemDetailAndAutoSave(t *testing.T) {
 	}
 }
 
+func TestItemStatusChange(t *testing.T) {
+	h, mux, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	item := &model.Item{
+		Title:  "Call supplier",
+		Status: "inbox",
+	}
+	itemID, err := db.CreateItem(h.DB, item)
+	if err != nil {
+		t.Fatalf("CreateItem failed: %v", err)
+	}
+
+	// Change status via PATCH /items/{id}/status (e.g. click "Waiting For" button)
+	form := url.Values{}
+	form.Set("status", "waiting")
+	req := httptest.NewRequest("PATCH", fmt.Sprintf("/items/%d/status", itemID), strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", rec.Code)
+	}
+	if trigger := rec.Header().Get("HX-Trigger"); trigger != "itemChanged" {
+		t.Errorf("expected HX-Trigger 'itemChanged', got %q", trigger)
+	}
+
+	// Check response body renders updated detail with active waiting status
+	body := rec.Body.String()
+	if !strings.Contains(body, `class="status-btn active"`) || !strings.Contains(body, "Waiting For") {
+		t.Errorf("expected Waiting For button to be active in returned detail html, got: %s", body)
+	}
+
+	// Verify DB state
+	updated, err := db.GetItemByID(h.DB, itemID)
+	if err != nil {
+		t.Fatalf("GetItemByID failed: %v", err)
+	}
+	if updated.Status != "waiting" {
+		t.Errorf("expected status 'waiting', got %q", updated.Status)
+	}
+}
+
 func TestPasteImageAndAttachment(t *testing.T) {
 	h, mux, cleanup := setupTestServer(t)
 	defer cleanup()

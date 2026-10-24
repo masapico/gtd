@@ -32,33 +32,33 @@
       <label class="form-label">GTD ステータス</label>
       <div class="status-selector">
         <button type="button" class="status-btn {{if eq .Item.Status "inbox"}}active{{end}}" 
-                hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "inbox"}' hx-swap="none"
-                hx-get="/items/{{.Item.ID}}/detail" hx-target="#item-detail-pane">
+                hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "inbox"}'
+                hx-target="#item-detail-pane" hx-swap="innerHTML">
           Inbox
         </button>
         <button type="button" class="status-btn {{if eq .Item.Status "next"}}active{{end}}" 
-                hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "next"}' hx-swap="none"
-                hx-get="/items/{{.Item.ID}}/detail" hx-target="#item-detail-pane">
+                hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "next"}'
+                hx-target="#item-detail-pane" hx-swap="innerHTML">
           Next Action
         </button>
         <button type="button" class="status-btn {{if eq .Item.Status "waiting"}}active{{end}}" 
-                hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "waiting"}' hx-swap="none"
-                hx-get="/items/{{.Item.ID}}/detail" hx-target="#item-detail-pane">
+                hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "waiting"}'
+                hx-target="#item-detail-pane" hx-swap="innerHTML">
           Waiting For
         </button>
         <button type="button" class="status-btn {{if eq .Item.Status "someday"}}active{{end}}" 
-                hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "someday"}' hx-swap="none"
-                hx-get="/items/{{.Item.ID}}/detail" hx-target="#item-detail-pane">
+                hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "someday"}'
+                hx-target="#item-detail-pane" hx-swap="innerHTML">
           Someday
         </button>
         <button type="button" class="status-btn {{if eq .Item.Status "reference"}}active{{end}}" 
-                hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "reference"}' hx-swap="none"
-                hx-get="/items/{{.Item.ID}}/detail" hx-target="#item-detail-pane">
+                hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "reference"}'
+                hx-target="#item-detail-pane" hx-swap="innerHTML">
           Reference
         </button>
         <button type="button" class="status-btn {{if eq .Item.Status "done"}}active{{end}}" 
-                hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "done"}' hx-swap="none"
-                hx-get="/items/{{.Item.ID}}/detail" hx-target="#item-detail-pane">
+                hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "done"}'
+                hx-target="#item-detail-pane" hx-swap="innerHTML">
           Done
         </button>
       </div>
