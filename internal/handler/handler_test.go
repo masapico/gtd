@@ -530,4 +530,74 @@ func TestContextManagementViewAndCRUD(t *testing.T) {
 	if trigger := rec.Header().Get("HX-Trigger"); !strings.Contains(trigger, "contextChanged") {
 		t.Errorf("expected contextChanged trigger on delete, got %q", trigger)
 	}
+
+	// 6. Verify URL sync script is rendered in partials
+	if !strings.Contains(body, "pane.setAttribute('hx-get', '/partials/items?view=contexts')") {
+		t.Errorf("expected hx-get sync script in partials view, got: %s", body)
+	}
+}
+
+func TestRelativeDueDateRenderingInItemList(t *testing.T) {
+	_, mux, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	now := time.Now()
+	today := now.Format("2006-01-02")
+	tomorrow := now.AddDate(0, 0, 1).Format("2006-01-02")
+	yesterday := now.AddDate(0, 0, -1).Format("2006-01-02")
+
+	// Create items with today, tomorrow, yesterday
+	itemsToCreate := []struct {
+		title   string
+		dueDate string
+	}{
+		{title: "Today Task", dueDate: today},
+		{title: "Tomorrow Task", dueDate: tomorrow},
+		{title: "Yesterday Task", dueDate: yesterday},
+	}
+
+	for _, item := range itemsToCreate {
+		form := url.Values{}
+		form.Set("title", item.title)
+		form.Set("due_date", item.dueDate)
+		req := httptest.NewRequest("POST", "/items", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("Create item %s failed: %d", item.title, rec.Code)
+		}
+	}
+
+	// Fetch items partial
+	req := httptest.NewRequest("GET", "/partials/items?view=inbox", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Get items failed: %d", rec.Code)
+	}
+
+	body := rec.Body.String()
+
+	// Verify labels
+	if !strings.Contains(body, "<span>今日</span>") {
+		t.Errorf("expected '<span>今日</span>' in item list")
+	}
+	if !strings.Contains(body, "<span>明日</span>") {
+		t.Errorf("expected '<span>明日</span>' in item list")
+	}
+	if !strings.Contains(body, "<span>期限超過 (昨日)</span>") {
+		t.Errorf("expected '<span>期限超過 (昨日)</span>' in item list")
+	}
+
+	// Verify CSS classes
+	if !strings.Contains(body, "due-today") {
+		t.Errorf("expected 'due-today' class in item list")
+	}
+	if !strings.Contains(body, "due-soon") {
+		t.Errorf("expected 'due-soon' class in item list")
+	}
+	if !strings.Contains(body, "due-overdue") {
+		t.Errorf("expected 'due-overdue' class in item list")
+	}
 }

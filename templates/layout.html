@@ -58,7 +58,7 @@
     </nav>
 
     <!-- Center Pane: Main Content List or Review Wizard -->
-    <main id="main-content-pane" class="main-content-pane" hx-get="/partials/items?view={{.ItemList.View}}{{if .ItemList.CurrentProject}}&project_id={{.ItemList.CurrentProject.ID}}{{end}}{{if .ItemList.CurrentContext}}&context_id={{.ItemList.CurrentContext.ID}}{{end}}" hx-trigger="itemChanged from:body, listRefresh from:body, contextChanged from:body" hx-swap="innerHTML">
+    <main id="main-content-pane" class="main-content-pane" hx-get="/partials/items?view={{.ItemList.View}}{{if .ItemList.CurrentProject}}&project_id={{.ItemList.CurrentProject.ID}}{{end}}{{if .ItemList.CurrentContext}}&context_id={{.ItemList.CurrentContext.ID}}{{end}}" hx-trigger="itemChanged from:body, listRefresh from:body, contextChanged from:body, projectChanged from:body" hx-swap="innerHTML">
       {{template "item_list.html" .ItemList}}
     </main>
 

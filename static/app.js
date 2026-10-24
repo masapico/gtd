@@ -141,3 +141,18 @@ function showToast(message) {
   }, 2500);
 }
 
+// 7. 中央ペインの hx-get 属性を動的に追従（ビュー切り替え後のリフレッシュ先を維持）
+function syncMainPaneUrl(e) {
+  const target = e.detail?.target;
+  if (target && target.id === 'main-content-pane') {
+    const cfg = e.detail.requestConfig;
+    const method = (cfg?.verb || cfg?.method || '').toLowerCase();
+    const path = cfg?.path;
+    if (method === 'get' && path && path.startsWith('/partials/items')) {
+      target.setAttribute('hx-get', path);
+    }
+  }
+}
+document.addEventListener('htmx:afterRequest', syncMainPaneUrl);
+document.addEventListener('htmx:after:request', syncMainPaneUrl);
+

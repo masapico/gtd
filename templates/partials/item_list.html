@@ -331,11 +331,11 @@
 
               <!-- 期限日バッジ -->
               {{if .DueDate}}
-                <span class="meta-tag {{.DueDateClass}}" title="期限日">
+                <span class="meta-tag {{.DueDateClass}}" title="{{.DueTooltip}}">
                   <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
                     <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/>
                   </svg>
-                  <span>{{.FormattedDueDate}}</span>
+                  <span>{{.DueDisplay}}</span>
                 </span>
               {{end}}
 
@@ -374,3 +374,13 @@
     {{end}}
   </div>
 {{end}}
+
+<!-- 中央ペインの hx-get を現在の表示URLに同期（別画面への不意なリセット防止） -->
+<script>
+  (function() {
+    var pane = document.getElementById('main-content-pane');
+    if (pane) {
+      pane.setAttribute('hx-get', '/partials/items?view={{.View}}{{if .CurrentProject}}&project_id={{.CurrentProject.ID}}{{end}}{{if .CurrentContext}}&context_id={{.CurrentContext.ID}}{{end}}{{if .ProjectStatus}}&project_status={{.ProjectStatus}}{{end}}{{if .Search}}&search={{.Search}}{{end}}');
+    }
+  })();
+</script>

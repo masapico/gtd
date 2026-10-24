@@ -550,6 +550,13 @@ body {
   font-weight: 600;
 }
 
+.due-soon {
+  background-color: #fffde7;
+  color: #f57f17;
+  border: 1px solid #fff59d;
+  font-weight: 600;
+}
+
 .due-future {
   background-color: var(--md-sys-color-surface-container);
   color: var(--md-sys-color-on-surface-variant);

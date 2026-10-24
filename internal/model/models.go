@@ -1,6 +1,8 @@
 package model
 
 import (
+	"fmt"
+	"math"
 	"strings"
 	"time"
 )
@@ -121,17 +123,87 @@ func (i Item) FormattedDueDate() string {
 	return s
 }
 
-// DueDateClass は期日に応じたCSSクラスを返します（超過、今日、将来）
-func (i Item) DueDateClass() string {
-	d := i.FormattedDueDate()
-	if d == "" {
+// DueDisplay は期日を人間が一目で把握できる相対表記（今日、明日、明後日、N日後、期限超過など）で返します
+func (i Item) DueDisplay() string {
+	dStr := i.FormattedDueDate()
+	if dStr == "" {
 		return ""
 	}
-	today := time.Now().Format("2006-01-02")
-	if d < today {
+	t, err := time.ParseInLocation("2006-01-02", dStr, time.Local)
+	if err != nil {
+		return dStr
+	}
+	return CalculateDueDisplay(t, time.Now().In(time.Local))
+}
+
+// CalculateDueDisplay は基準時刻 now に対する期日 t の相対表記を算出します（テスト等で利用可能）
+func CalculateDueDisplay(t, now time.Time) string {
+	todayZero := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
+	dueZero := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.Local)
+	diffDays := int(math.Round(dueZero.Sub(todayZero).Hours() / 24.0))
+
+	switch {
+	case diffDays < -1:
+		return fmt.Sprintf("期限超過 (%d日前)", -diffDays)
+	case diffDays == -1:
+		return "期限超過 (昨日)"
+	case diffDays == 0:
+		return "今日"
+	case diffDays == 1:
+		return "明日"
+	case diffDays == 2:
+		return "明後日"
+	case diffDays >= 3 && diffDays <= 14:
+		return fmt.Sprintf("%d日後", diffDays)
+	default:
+		// 15日以上先
+		if t.Year() == now.Year() {
+			return t.Format("1月2日")
+		}
+		return t.Format("2006年1月2日")
+	}
+}
+
+// DueTooltip はマウスホバー時に表示する完全な期日詳細文字列を返します
+func (i Item) DueTooltip() string {
+	dStr := i.FormattedDueDate()
+	if dStr == "" {
+		return ""
+	}
+	t, err := time.ParseInLocation("2006-01-02", dStr, time.Local)
+	if err != nil {
+		return "期限日: " + dStr
+	}
+	weekdays := []string{"日", "月", "火", "水", "木", "金", "土"}
+	weekday := weekdays[t.Weekday()]
+	return fmt.Sprintf("期限日: %s (%s) [%s]", dStr, weekday, i.DueDisplay())
+}
+
+// DueDateClass は期日に応じたCSSクラスを返します（超過、今日、直近、将来）
+func (i Item) DueDateClass() string {
+	dStr := i.FormattedDueDate()
+	if dStr == "" {
+		return ""
+	}
+	t, err := time.ParseInLocation("2006-01-02", dStr, time.Local)
+	if err != nil {
+		return "due-future"
+	}
+	return CalculateDueDateClass(t, time.Now().In(time.Local))
+}
+
+// CalculateDueDateClass は基準時刻 now に対する期日 t のCSSクラスを算出します
+func CalculateDueDateClass(t, now time.Time) string {
+	todayZero := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
+	dueZero := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.Local)
+	diffDays := int(math.Round(dueZero.Sub(todayZero).Hours() / 24.0))
+
+	if diffDays < 0 {
 		return "due-overdue"
-	} else if d == today {
+	} else if diffDays == 0 {
 		return "due-today"
+	} else if diffDays <= 2 {
+		return "due-soon"
 	}
 	return "due-future"
 }
