@@ -478,8 +478,19 @@ document.addEventListener('htmx:responseError', handleHtmxError);
 document.addEventListener('htmx:error', handleHtmxError);
 
 // 7. 週次レビュー Step 1 / Step 3 のカード削除時カウント・表示自動更新
-function handleReviewCardSwapped() {
+function handleReviewCardSwapped(e) {
   const step1List = document.getElementById('step1-items-list');
+  const step2List = document.getElementById('step2-projects-list');
+  const step3List = document.getElementById('step3-items-list');
+  if (!step1List && !step2List && !step3List) return;
+
+  // スワップ対象の要素（e.detail.target または e.target）を取得
+  const target = e?.detail?.target || e?.target;
+  // レビュー画面に関係のないスワップ（サイドバー、オムニサーチ、モーダル等）ならスキップ
+  if (target && (target.id === 'sidebar-pane' || target.id === 'omnisearch-dropdown' || target.id === 'modal-container' || target.id === 'item-detail-pane')) {
+    return;
+  }
+
   if (step1List) {
     const remaining = step1List.querySelectorAll('.review-card').length;
     const countEl = document.getElementById('step1-remaining-count');
@@ -501,7 +512,6 @@ function handleReviewCardSwapped() {
     }
   }
 
-  const step3List = document.getElementById('step3-items-list');
   if (step3List) {
     const remaining = step3List.querySelectorAll('.review-card').length;
     const countEl = document.getElementById('step3-remaining-count');
@@ -515,7 +525,6 @@ function handleReviewCardSwapped() {
     }
   }
 
-  const step2List = document.getElementById('step2-projects-list');
   if (step2List) {
     const remaining = step2List.querySelectorAll('.review-card').length;
     if (remaining === 0 && !document.getElementById('step2-zero-state')) {
@@ -528,19 +537,9 @@ function handleReviewCardSwapped() {
       step2List.appendChild(zeroDiv);
     }
   }
-
-  // 週次レビュー仕分け時、サイドバーのViewsカウントを即時リフレッシュ
-  if (step1List || step2List || step3List) {
-    const sidebar = document.getElementById('sidebar-pane');
-    if (sidebar && window.htmx) {
-      htmx.ajax('GET', '/partials/sidebar', { target: '#sidebar-pane', swap: 'innerHTML' });
-    }
-  }
 }
 document.addEventListener('htmx:afterSwap', handleReviewCardSwapped);
 document.addEventListener('htmx:after:swap', handleReviewCardSwapped);
-document.addEventListener('htmx:afterRequest', handleReviewCardSwapped);
-document.addEventListener('htmx:after:request', handleReviewCardSwapped);
 
 // 8. プロジェクト名・詳細のインライン編集制御
 function toggleProjectEdit(show) {
