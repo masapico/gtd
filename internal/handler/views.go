@@ -138,6 +138,9 @@ func (h *Handler) buildItemListData(view string, pID *int64, cID *int64, search 
 	case "projects":
 		title = "プロジェクト管理・履歴"
 		description = "進行中・保留中・完了済みの全プロジェクトの確認とステータス変更。"
+	case "contexts":
+		title = "Contexts 管理"
+		description = "作業場所・状況・タグの確認、名前の変更、新規作成および削除。"
 	}
 
 	if currentContext != nil {

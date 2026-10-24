@@ -1,4 +1,8 @@
-<div id="item-detail-content" data-item-id="{{.Item.ID}}">
+<div id="item-detail-content" data-item-id="{{.Item.ID}}" 
+     hx-get="/items/{{.Item.ID}}/detail" 
+     hx-trigger="itemDetailRefresh from:body, contextChanged from:body" 
+     hx-target="#item-detail-pane" 
+     hx-swap="innerHTML">
   <!-- Detail Header -->
   <div class="detail-header">
     <div style="font-size: 0.85rem; font-weight: 600; color: var(--md-sys-color-on-surface-variant);">
@@ -71,7 +75,7 @@
       <!-- Title -->
       <div class="form-group">
         <label class="form-label" for="detail-title">タイトル</label>
-        <input id="detail-title" name="title" class="form-input" type="text" value="{{.Item.Title}}" required autocomplete="off">
+        <input id="detail-title" name="title" class="form-input" type="text" value="{{.Item.Title}}" placeholder="タイトル... (#タグ ^期日 も利用可能)" required autocomplete="off">
       </div>
 
       <!-- Project -->

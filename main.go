@@ -82,6 +82,7 @@ func main() {
 
 	// Contexts
 	mux.HandleFunc("POST /contexts", h.CreateContext)
+	mux.HandleFunc("PUT /contexts/{id}", h.UpdateContext)
 	mux.HandleFunc("DELETE /contexts/{id}", h.DeleteContext)
 
 	// Attachments (OS起動・削除)

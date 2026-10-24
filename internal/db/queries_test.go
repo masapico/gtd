@@ -151,3 +151,66 @@ func TestProjectStalledReview(t *testing.T) {
 	}
 }
 
+func TestContextCRUD(t *testing.T) {
+	dbPath := setupTestDB(t)
+	db, err := InitDB(dbPath)
+	if err != nil {
+		t.Fatalf("InitDB failed: %v", err)
+	}
+	defer db.Close()
+
+	// 1. Initial seeded contexts (#PC, #会議, #連絡, #5分, #外出)
+	ctxs, err := GetContexts(db)
+	if err != nil {
+		t.Fatalf("GetContexts failed: %v", err)
+	}
+	if len(ctxs) < 5 {
+		t.Fatalf("expected at least 5 default contexts, got %d", len(ctxs))
+	}
+
+	// 2. Create Context without # prefix (should auto-prefix #)
+	id, err := CreateContext(db, "経理")
+	if err != nil {
+		t.Fatalf("CreateContext failed: %v", err)
+	}
+	c, err := GetContextByID(db, id)
+	if err != nil {
+		t.Fatalf("GetContextByID failed: %v", err)
+	}
+	if c.Name != "#経理" {
+		t.Errorf("expected '#経理', got %q", c.Name)
+	}
+
+	// 3. Create duplicate context (should return existing id without error)
+	dupID, err := CreateContext(db, "#経理")
+	if err != nil {
+		t.Fatalf("CreateContext duplicate failed: %v", err)
+	}
+	if dupID != id {
+		t.Errorf("expected duplicate ID %d, got %d", id, dupID)
+	}
+
+	// 4. Update Context
+	err = UpdateContext(db, id, "財務・経理")
+	if err != nil {
+		t.Fatalf("UpdateContext failed: %v", err)
+	}
+	c, err = GetContextByID(db, id)
+	if err != nil {
+		t.Fatalf("GetContextByID after update failed: %v", err)
+	}
+	if c.Name != "#財務・経理" {
+		t.Errorf("expected '#財務・経理', got %q", c.Name)
+	}
+
+	// 5. Delete Context
+	err = DeleteContext(db, id)
+	if err != nil {
+		t.Fatalf("DeleteContext failed: %v", err)
+	}
+	_, err = GetContextByID(db, id)
+	if err == nil {
+		t.Errorf("expected error getting deleted context, got nil")
+	}
+}
+

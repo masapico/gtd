@@ -111,7 +111,7 @@ func migrateSchema(db *sql.DB) error {
 }
 
 func seedDefaultContexts(db *sql.DB) error {
-	defaults := []string{"@PC", "@会議", "@連絡", "@5分", "@外出"}
+	defaults := []string{"#PC", "#会議", "#連絡", "#5分", "#外出"}
 	for _, name := range defaults {
 		_, err := db.Exec("INSERT OR IGNORE INTO contexts (name) VALUES (?)", name)
 		if err != nil {

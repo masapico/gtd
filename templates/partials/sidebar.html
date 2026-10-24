@@ -91,8 +91,8 @@
 <!-- Contexts -->
 <div class="sidebar-section">
   <div class="sidebar-section-title">
-    <span>Contexts</span>
-    <span class="badge">{{len .Contexts}}</span>
+    <span hx-get="/partials/items?view=contexts" hx-target="#main-content-pane" style="cursor: pointer;" title="コンテキスト管理・一覧を開く">Contexts</span>
+    <a hx-get="/partials/items?view=contexts" hx-target="#main-content-pane" class="badge" style="cursor: pointer; text-decoration: none;" title="すべてのコンテキスト一覧・管理">管理 ({{len .Contexts}})</a>
   </div>
   <div class="sidebar-chips-container">
     {{range .Contexts}}
@@ -111,7 +111,7 @@
 
   <!-- Mini Add Context Form -->
   <form class="mini-add-form" hx-post="/contexts" hx-swap="none" onsubmit="setTimeout(() => { this.reset(); }, 30)">
-    <input class="mini-add-input" name="name" placeholder="+ @場所・状況" required autocomplete="off">
+    <input class="mini-add-input" name="name" placeholder="+ #場所・状況" required autocomplete="off">
     <button class="mini-add-btn" type="submit">追加</button>
   </form>
 </div>

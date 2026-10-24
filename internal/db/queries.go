@@ -588,14 +588,80 @@ func GetContexts(db *sql.DB) ([]model.Context, error) {
 
 // CreateContext は新しいコンテキストタグを作成します
 func CreateContext(db *sql.DB, name string) (int64, error) {
-	if !strings.HasPrefix(name, "@") {
-		name = "@" + name
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return 0, fmt.Errorf("context name cannot be empty")
+	}
+	if !strings.HasPrefix(name, "#") && !strings.HasPrefix(name, "@") {
+		name = "#" + name
 	}
 	res, err := db.Exec(`INSERT OR IGNORE INTO contexts (name) VALUES (?)`, name)
 	if err != nil {
 		return 0, err
 	}
-	return res.LastInsertId()
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	if id == 0 {
+		// すでに存在している場合は既存のIDを取得
+		existing, err := GetContextByName(db, name)
+		if err != nil {
+			return 0, err
+		}
+		return existing.ID, nil
+	}
+	return id, nil
+}
+
+// GetContextByName は指定された名前のコンテキストを取得します
+func GetContextByName(db *sql.DB, name string) (*model.Context, error) {
+	name = strings.TrimSpace(name)
+	row := db.QueryRow(`SELECT id, name FROM contexts WHERE name = ?`, name)
+	var c model.Context
+	if err := row.Scan(&c.ID, &c.Name); err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
+
+// GetContextByID は指定されたIDのコンテキストを取得します
+func GetContextByID(db *sql.DB, id int64) (*model.Context, error) {
+	row := db.QueryRow(`
+		SELECT c.id, c.name, COUNT(ic.item_id) AS item_count
+		FROM contexts c
+		LEFT JOIN item_contexts ic ON c.id = ic.context_id
+		LEFT JOIN items i ON ic.item_id = i.id AND i.status != 'done'
+		WHERE c.id = ?
+		GROUP BY c.id
+	`, id)
+	var c model.Context
+	if err := row.Scan(&c.ID, &c.Name, &c.ItemCount); err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
+
+// FindOrCreateContext はコンテキストが存在すれば取得し、無ければ新規作成して取得します
+func FindOrCreateContext(db *sql.DB, name string) (*model.Context, error) {
+	id, err := CreateContext(db, name)
+	if err != nil {
+		return nil, err
+	}
+	return GetContextByID(db, id)
+}
+
+// UpdateContext はコンテキスト名を変更します
+func UpdateContext(db *sql.DB, id int64, newName string) error {
+	newName = strings.TrimSpace(newName)
+	if newName == "" {
+		return fmt.Errorf("context name cannot be empty")
+	}
+	if !strings.HasPrefix(newName, "#") && !strings.HasPrefix(newName, "@") {
+		newName = "#" + newName
+	}
+	_, err := db.Exec(`UPDATE contexts SET name = ? WHERE id = ?`, newName, id)
+	return err
 }
 
 // DeleteContext はコンテキストを削除します

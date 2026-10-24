@@ -38,7 +38,8 @@
           name="title" 
           class="quick-capture-input" 
           type="text" 
-          placeholder="頭の中のタスク・メモをクイック投入... ( / または Alt+N )" 
+          placeholder="頭の中のタスク投入... #タグ ^期日 (例: 報告書作成 #PC ^tomorrow)" 
+          title="スマート記法対応: #タグ名 でContext付与、^today / ^tomorrow / ^金 / ^日付 で期日指定"
           autocomplete="off" 
           required
         >
@@ -52,12 +53,12 @@
   <!-- 3-Pane Body -->
   <div class="app-body">
     <!-- Left Pane: Navigation & Filters -->
-    <nav id="sidebar-pane" class="sidebar-pane" hx-get="/partials/sidebar" hx-trigger="itemChanged from:body, projectChanged from:body" hx-swap="innerHTML">
+    <nav id="sidebar-pane" class="sidebar-pane" hx-get="/partials/sidebar" hx-trigger="itemChanged from:body, projectChanged from:body, contextChanged from:body" hx-swap="innerHTML">
       {{template "sidebar.html" .Sidebar}}
     </nav>
 
     <!-- Center Pane: Main Content List or Review Wizard -->
-    <main id="main-content-pane" class="main-content-pane" hx-get="/partials/items?view={{.ItemList.View}}{{if .ItemList.CurrentProject}}&project_id={{.ItemList.CurrentProject.ID}}{{end}}{{if .ItemList.CurrentContext}}&context_id={{.ItemList.CurrentContext.ID}}{{end}}" hx-trigger="itemChanged from:body, listRefresh from:body" hx-swap="innerHTML">
+    <main id="main-content-pane" class="main-content-pane" hx-get="/partials/items?view={{.ItemList.View}}{{if .ItemList.CurrentProject}}&project_id={{.ItemList.CurrentProject.ID}}{{end}}{{if .ItemList.CurrentContext}}&context_id={{.ItemList.CurrentContext.ID}}{{end}}" hx-trigger="itemChanged from:body, listRefresh from:body, contextChanged from:body" hx-swap="innerHTML">
       {{template "item_list.html" .ItemList}}
     </main>
 

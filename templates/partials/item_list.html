@@ -112,6 +112,17 @@
     </div>
   {{end}}
 
+  <!-- Contexts 管理ビューの場合の新規追加フォーム -->
+  {{if eq .View "contexts"}}
+    <form class="mini-add-form" style="margin-top: 12px; max-width: 500px;" 
+          hx-post="/contexts" 
+          hx-swap="none" 
+          onsubmit="setTimeout(() => { this.reset(); }, 30)">
+      <input class="form-input" style="padding: 6px 12px;" name="name" placeholder="+ 新しいContextタグを作成 (#場所・状況)..." required autocomplete="off">
+      <button class="btn-small" style="padding: 6px 14px; white-space: nowrap;" type="submit">タグ追加</button>
+    </form>
+  {{end}}
+
   <!-- Project ビューの場合のインラインタスク追加フォーム -->
   {{if and (eq .View "project") .CurrentProject}}
     {{if ne .CurrentProject.Status "done"}}
@@ -128,7 +139,56 @@
   {{end}}
 </div>
 
-{{if eq .View "projects"}}
+{{if eq .View "contexts"}}
+  <!-- Contexts Overview & Management List -->
+  <div class="items-list-container">
+    {{if eq (len .Contexts) 0}}
+      <div class="empty-state">
+        <svg class="empty-icon" viewBox="0 0 24 24">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+        </svg>
+        <p style="font-size: 1rem; font-weight: 500;">コンテキストはありません</p>
+      </div>
+    {{else}}
+      {{range .Contexts}}
+        <div class="item-card" style="justify-content: space-between; align-items: center;">
+          <div style="flex: 1; min-width: 0;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="badge" style="background-color: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); font-weight: 600; font-size: 0.95rem;">
+                {{.Name}}
+              </span>
+              <a hx-get="/partials/items?view=next&context_id={{.ID}}" 
+                 hx-target="#main-content-pane" 
+                 class="badge" 
+                 style="cursor: pointer; text-decoration: none; font-size: 0.75rem;" 
+                 title="このコンテキストの未完了Next Actionを表示">
+                未完了タスク: <strong>{{.ItemCount}}</strong> 件
+              </a>
+            </div>
+            <!-- インライン名前編集フォーム -->
+            <form hx-put="/contexts/{{.ID}}" hx-swap="none" style="display: flex; gap: 6px; align-items: center; margin-top: 8px; max-width: 380px;">
+              <input class="form-input" style="padding: 4px 8px; font-size: 0.85rem;" name="name" value="{{.Name}}" required autocomplete="off" title="タグ名を変更してEnterまたは保存">
+              <button class="btn-small" style="padding: 4px 10px; font-size: 0.8rem; white-space: nowrap;" type="submit">変更</button>
+            </form>
+          </div>
+
+          <!-- 削除アクション -->
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <button class="icon-btn danger" 
+                    hx-delete="/contexts/{{.ID}}" 
+                    hx-confirm="Context「{{.Name}}」を削除しますか？\n（関連するタスク自体の削除は行われません）" 
+                    hx-swap="none" 
+                    title="このコンテキストを削除">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      {{end}}
+    {{end}}
+  </div>
+{{else if eq .View "projects"}}
   <!-- Projects Overview & Archive List -->
   <div class="items-list-container">
     {{if eq (len .Projects) 0}}

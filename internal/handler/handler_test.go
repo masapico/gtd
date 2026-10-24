@@ -60,6 +60,9 @@ func setupTestServer(t *testing.T) (*Handler, http.Handler, func()) {
 	mux.HandleFunc("POST /projects", h.CreateProject)
 	mux.HandleFunc("PATCH /projects/{id}/status", h.UpdateProjectStatus)
 	mux.HandleFunc("DELETE /projects/{id}", h.DeleteProject)
+	mux.HandleFunc("POST /contexts", h.CreateContext)
+	mux.HandleFunc("PUT /contexts/{id}", h.UpdateContext)
+	mux.HandleFunc("DELETE /contexts/{id}", h.DeleteContext)
 	mux.HandleFunc("GET /review/step/{step}", h.ReviewStep)
 	mux.HandleFunc("POST /review/projects/{id}/reviewed", h.MarkProjectReviewed)
 	mux.HandleFunc("POST /review/items/{id}/reviewed", h.MarkItemReviewed)
@@ -86,8 +89,8 @@ func TestQuickCaptureAndItemList(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200 OK, got %d", rec.Code)
 	}
-	if trigger := rec.Header().Get("HX-Trigger"); trigger != "itemChanged" {
-		t.Errorf("expected HX-Trigger 'itemChanged', got %q", trigger)
+	if trigger := rec.Header().Get("HX-Trigger"); !strings.Contains(trigger, "itemChanged") {
+		t.Errorf("expected HX-Trigger to contain 'itemChanged', got %q", trigger)
 	}
 
 	// 2. Fetch partial items list
@@ -226,8 +229,8 @@ func TestItemStatusChange(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200 OK, got %d", rec.Code)
 	}
-	if trigger := rec.Header().Get("HX-Trigger"); trigger != "itemChanged" {
-		t.Errorf("expected HX-Trigger 'itemChanged', got %q", trigger)
+	if trigger := rec.Header().Get("HX-Trigger"); !strings.Contains(trigger, "itemChanged") {
+		t.Errorf("expected HX-Trigger to contain 'itemChanged', got %q", trigger)
 	}
 
 	// Check response body renders updated detail with active waiting status
@@ -384,5 +387,147 @@ func TestProjectStatusTransitionsAndRestore(t *testing.T) {
 	}
 	if restored.Status != "active" {
 		t.Errorf("expected status 'active', got %s", restored.Status)
+	}
+}
+
+func TestSmartAddAndContextIntegration(t *testing.T) {
+	h, mux, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// 1. Quick Capture with Smart Add syntax: "#PC" and "^today"
+	today := time.Now().Format("2006-01-02")
+	form := url.Values{}
+	form.Set("title", "プレゼン資料の作成 #PC #重要 ^today")
+	req := httptest.NewRequest("POST", "/items", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Quick capture failed: %d", rec.Code)
+	}
+
+	// Verify created item
+	items, err := db.GetItems(h.DB, model.ItemFilter{View: "inbox"})
+	if err != nil {
+		t.Fatalf("GetItems failed: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(items))
+	}
+
+	it := items[0]
+	if it.Title != "プレゼン資料の作成" {
+		t.Errorf("expected clean title 'プレゼン資料の作成', got %q", it.Title)
+	}
+	if it.DueDate == nil || *it.DueDate != today {
+		t.Errorf("expected due date %q, got %v", today, it.DueDate)
+	}
+	if len(it.Contexts) != 2 {
+		t.Fatalf("expected 2 contexts, got %d (%v)", len(it.Contexts), it.Contexts)
+	}
+
+	// 2. Test Smart Add in Item Detail Title update
+	form = url.Values{}
+	form.Set("title", "プレゼン資料の作成とレビュー #会議 ^tomorrow")
+	form.Set("status", "next")
+	req = httptest.NewRequest("PUT", fmt.Sprintf("/items/%d", it.ID), strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("UpdateItem failed: %d", rec.Code)
+	}
+	if trigger := rec.Header().Get("HX-Trigger"); !strings.Contains(trigger, "itemDetailRefresh") {
+		t.Errorf("expected itemDetailRefresh trigger, got %q", trigger)
+	}
+
+	updated, err := db.GetItemByID(h.DB, it.ID)
+	if err != nil {
+		t.Fatalf("GetItemByID failed: %v", err)
+	}
+	if updated.Title != "プレゼン資料の作成とレビュー" {
+		t.Errorf("expected clean title 'プレゼン資料の作成とレビュー', got %q", updated.Title)
+	}
+	tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
+	if updated.DueDate == nil || *updated.DueDate != tomorrow {
+		t.Errorf("expected due date %q, got %v", tomorrow, updated.DueDate)
+	}
+	if !updated.HasContext(it.Contexts[0].ID) {
+		t.Errorf("expected existing context to be preserved")
+	}
+}
+
+func TestContextManagementViewAndCRUD(t *testing.T) {
+	_, mux, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// 1. View Contexts management screen
+	req := httptest.NewRequest("GET", "/partials/items?view=contexts", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("View contexts failed: %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "Contexts 管理") {
+		t.Errorf("expected 'Contexts 管理' in view, got: %s", body)
+	}
+	if !strings.Contains(body, "#PC") {
+		t.Errorf("expected '#PC' in contexts list")
+	}
+
+	// 2. Create Context via POST /contexts
+	form := url.Values{}
+	form.Set("name", "出張")
+	req = httptest.NewRequest("POST", "/contexts", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("CreateContext failed: %d", rec.Code)
+	}
+	if trigger := rec.Header().Get("HX-Trigger"); !strings.Contains(trigger, "contextChanged") {
+		t.Errorf("expected contextChanged trigger, got %q", trigger)
+	}
+
+	// 3. Verify in Contexts view
+	req = httptest.NewRequest("GET", "/partials/items?view=contexts", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if !strings.Contains(rec.Body.String(), "#出張") {
+		t.Errorf("expected '#出張' in contexts list")
+	}
+
+	// 4. Update Context via PUT /contexts/{id}
+	// #出張 のIDを取得するためにシード件数(5)の次であるID 6を想定、またはクエリ
+	req = httptest.NewRequest("GET", "/partials/items?view=contexts", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	form = url.Values{}
+	form.Set("name", "国内出張")
+	req = httptest.NewRequest("PUT", "/contexts/6", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("UpdateContext failed: %d", rec.Code)
+	}
+
+	// 5. Delete Context via DELETE /contexts/{id}
+	req = httptest.NewRequest("DELETE", "/contexts/6", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("DeleteContext failed: %d", rec.Code)
+	}
+	if trigger := rec.Header().Get("HX-Trigger"); !strings.Contains(trigger, "contextChanged") {
+		t.Errorf("expected contextChanged trigger on delete, got %q", trigger)
 	}
 }

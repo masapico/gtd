@@ -4,9 +4,11 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"gtd/internal/db"
 	"gtd/internal/model"
+	"gtd/internal/smartadd"
 )
 
 // ItemDetailData は右ペイン（インスペクタ）描画用のデータモデルです
@@ -23,10 +25,17 @@ func (h *Handler) CreateItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	title := strings.TrimSpace(r.FormValue("title"))
-	if title == "" {
+	rawTitle := strings.TrimSpace(r.FormValue("title"))
+	if rawTitle == "" {
 		http.Error(w, "Title is required", http.StatusBadRequest)
 		return
+	}
+
+	// Smart Add 構文解析 (^期日, #コンテキスト)
+	parsed := smartadd.Parse(rawTitle, time.Now())
+	title := parsed.CleanTitle
+	if title == "" {
+		title = rawTitle
 	}
 
 	status := r.FormValue("status")
@@ -45,11 +54,22 @@ func (h *Handler) CreateItem(w http.ResponseWriter, r *http.Request) {
 	var pDueDate *string
 	if dueDate != "" {
 		pDueDate = &dueDate
+	} else if parsed.DueDate != nil {
+		pDueDate = parsed.DueDate
 	}
 
 	recurrence := r.FormValue("recurrence")
 	if recurrence == "" {
 		recurrence = "none"
+	}
+
+	// 解析されたContextタグを取得または自動作成
+	var itemContexts []model.Context
+	for _, ctxName := range parsed.Contexts {
+		c, err := db.FindOrCreateContext(h.DB, ctxName)
+		if err == nil && c != nil {
+			itemContexts = append(itemContexts, *c)
+		}
 	}
 
 	item := &model.Item{
@@ -59,6 +79,7 @@ func (h *Handler) CreateItem(w http.ResponseWriter, r *http.Request) {
 		Status:     status,
 		DueDate:    pDueDate,
 		Recurrence: recurrence,
+		Contexts:   itemContexts,
 	}
 
 	_, err := db.CreateItem(h.DB, item)
@@ -68,7 +89,7 @@ func (h *Handler) CreateItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 画面全体の各ペインへ再読み込みイベントを発火
-	h.Trigger(w, "itemChanged")
+	h.Trigger(w, "itemChanged", "contextChanged")
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -118,16 +139,36 @@ func (h *Handler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 		title = "（タイトルなし）"
 	}
 
+	var pDueDate *string
+	if d := r.FormValue("due_date"); d != "" {
+		pDueDate = &d
+	}
+
+	// Smart Add 構文解析 (^期日, #コンテキスト)
+	parsed := smartadd.Parse(title, time.Now())
+	syntaxDetected := false
+	if parsed.CleanTitle != title || len(parsed.Contexts) > 0 || (parsed.DueDate != nil && (pDueDate == nil || *pDueDate != *parsed.DueDate)) {
+		syntaxDetected = true
+		title = parsed.CleanTitle
+		if title == "" {
+			title = "（タイトルなし）"
+		}
+		if parsed.DueDate != nil {
+			pDueDate = parsed.DueDate
+		}
+		for _, ctxName := range parsed.Contexts {
+			c, err := db.FindOrCreateContext(h.DB, ctxName)
+			if err == nil && c != nil {
+				_, _ = h.DB.Exec("INSERT OR IGNORE INTO item_contexts (item_id, context_id) VALUES (?, ?)", id, c.ID)
+			}
+		}
+	}
+
 	var pID *int64
 	if pidStr := r.FormValue("project_id"); pidStr != "" {
 		if pid, err := strconv.ParseInt(pidStr, 10, 64); err == nil && pid > 0 {
 			pID = &pid
 		}
-	}
-
-	var pDueDate *string
-	if d := r.FormValue("due_date"); d != "" {
-		pDueDate = &d
 	}
 
 	recurrence := r.FormValue("recurrence")
@@ -156,7 +197,11 @@ func (h *Handler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 変更を中央リストやサイドバーに同期
-	h.Trigger(w, "itemChanged")
+	if syntaxDetected {
+		h.Trigger(w, "itemChanged", "contextChanged", "itemDetailRefresh")
+	} else {
+		h.Trigger(w, "itemChanged")
+	}
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -254,7 +299,36 @@ func (h *Handler) CreateContext(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.Trigger(w, "itemChanged")
+	h.Trigger(w, "contextChanged", "itemChanged")
+	w.WriteHeader(http.StatusOK)
+}
+
+// UpdateContext はContextタグの名前を変更します
+func (h *Handler) UpdateContext(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid context ID", http.StatusBadRequest)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	name := strings.TrimSpace(r.FormValue("name"))
+	if name == "" {
+		http.Error(w, "Name is required", http.StatusBadRequest)
+		return
+	}
+
+	if err := db.UpdateContext(h.DB, id, name); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	h.Trigger(w, "contextChanged", "itemChanged")
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -272,7 +346,7 @@ func (h *Handler) DeleteContext(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.Trigger(w, "itemChanged")
+	h.Trigger(w, "contextChanged", "itemChanged")
 	w.WriteHeader(http.StatusOK)
 }
 
