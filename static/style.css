@@ -6,7 +6,7 @@
   /* M3 Tonal Palette - Neutral & Primary */
   --md-sys-color-primary: #00639b;
   --md-sys-color-on-primary: #ffffff;
-  --md-sys-color-primary-container: #d0e4ff;
+  --md-sys-color-primary-container: #e1ecf9;
   --md-sys-color-on-primary-container: #001d32;
 
   --md-sys-color-secondary: #526070;
@@ -888,7 +888,7 @@ body {
 .nav-review-item {
   background-color: var(--md-sys-color-primary-container);
   color: var(--md-sys-color-on-primary-container);
-  font-weight: 600;
+  font-weight: 400;
   margin-top: 2px;
 }
 .nav-review-item:hover {
