@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GTD - Personal Task & Info Manager</title>
-  <link rel="stylesheet" href="/static/style.css?v=6">
+  <link rel="stylesheet" href="/static/style.css?v=7">
   <script src="/static/htmx.min.js"></script>
-  <script src="/static/app.js?v=6"></script>
+  <script src="/static/app.js?v=7"></script>
 </head>
 <body hx-ext="morph">
 
@@ -81,7 +81,27 @@
       </div>
     </div>
 
-    <div class="topbar-right"></div>
+    <div class="topbar-right">
+      <!-- Launcher Modal Trigger Button -->
+      <button type="button" 
+              class="topbar-btn topbar-launcher-btn" 
+              hx-get="/partials/launchers" 
+              hx-target="#modal-container" 
+              hx-swap="innerHTML"
+              onclick="openModal()"
+              title="アプリケーションランチャー (Ctrl+L)">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+          <path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/>
+        </svg>
+        <span class="shortcut-badge shortcut-badge-sm">Ctrl+L</span>
+      </button>
+
+      <!-- Clock Widget Mock (2-tier display) -->
+      <div class="topbar-clock" id="topbar-clock" title="現在時刻">
+        <div class="clock-date" id="clock-date">----/--/-- ---</div>
+        <div class="clock-time" id="clock-time">--:--:--</div>
+      </div>
+    </div>
   </header>
 
   <!-- 3-Pane Body -->
@@ -101,6 +121,9 @@
       <!-- Item detail dynamically loaded here via htmx -->
     </aside>
   </div>
+
+  <!-- Modal Overlay Container -->
+  <div id="modal-container" class="modal-overlay hidden" tabindex="-1" onclick="if(event.target === this) closeModal();"></div>
 
 </body>
 </html>

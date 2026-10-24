@@ -105,13 +105,27 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
+  // Ctrl + L / Cmd + L: アプリケーションランチャーモーダルを開く
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'l' || e.key === 'L')) {
+    e.preventDefault();
+    openLauncherModal();
+    return;
+  }
+
   const dropdown = document.getElementById('omnisearch-dropdown');
   const isDropdownOpen = dropdown && !dropdown.classList.contains('hidden') && dropdown.innerHTML.trim() !== '';
   const searchInput = document.getElementById('omnisearch-input');
   const isSearchFocused = document.activeElement === searchInput;
 
-  // Esc: オムニサーチドロップダウンを閉じる / プロジェクトインライン編集を閉じる / 詳細インスペクタを閉じる / サイドバーを閉じる
+  // Esc: モーダルを閉じる / オムニサーチドロップダウンを閉じる / プロジェクトインライン編集を閉じる / 詳細インスペクタを閉じる / サイドバーを閉じる
   if (e.key === 'Escape') {
+    const modal = document.getElementById('modal-container');
+    if (modal && !modal.classList.contains('hidden') && modal.innerHTML.trim() !== '') {
+      e.preventDefault();
+      closeModal();
+      return;
+    }
+
     if (isDropdownOpen) {
       e.preventDefault();
       closeOmnisearchDropdown();
@@ -518,5 +532,87 @@ function syncBodyPreview(value) {
     snippetEl.innerText = '+ メモを追加';
   }
 }
+
+// 10. モーダルダイアログ制御 (ランチャー管理など)
+function openModal() {
+  const container = document.getElementById('modal-container');
+  if (container) {
+    container.classList.remove('hidden');
+    // 開いた後に名前入力欄へオートフォーカス
+    setTimeout(() => {
+      const nameInput = document.getElementById('launcher-name-input');
+      if (nameInput) {
+        nameInput.focus();
+      }
+    }, 50);
+  }
+}
+
+function closeModal() {
+  const container = document.getElementById('modal-container');
+  if (container) {
+    container.classList.add('hidden');
+    container.innerHTML = '';
+  }
+}
+
+function openLauncherModal() {
+  const container = document.getElementById('modal-container');
+  if (container) {
+    openModal();
+    if (window.htmx) {
+      htmx.ajax('GET', '/partials/launchers', { target: '#modal-container', swap: 'innerHTML' });
+    }
+  }
+}
+
+// オムニサーチでランチャーを選択・起動した際のハンドラ
+function onLauncherSelected() {
+  closeOmnisearchDropdown();
+  const searchInput = document.getElementById('omnisearch-input');
+  if (searchInput) {
+    searchInput.value = '';
+    searchInput.blur();
+  }
+  const clearBtn = document.getElementById('omnisearch-clear-btn');
+  if (clearBtn) {
+    clearBtn.classList.add('hidden');
+  }
+}
+
+// 11. ヘッダー時計ウィジェットモック (2段表示: YYYY-MM-DD ddd / HH:mm:ss)
+function initClock() {
+  const dateEl = document.getElementById('clock-date');
+  const timeEl = document.getElementById('clock-time');
+  if (!dateEl || !timeEl) return;
+
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  function update() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const weekday = days[now.getDay()];
+
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+
+    dateEl.textContent = `${year}-${month}-${day} ${weekday}`;
+    timeEl.textContent = `${hours}:${minutes}:${seconds}`;
+  }
+
+  update();
+  setInterval(update, 1000);
+}
+
+// ページロード時に時計を初期化
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initClock);
+} else {
+  initClock();
+}
+
 
 

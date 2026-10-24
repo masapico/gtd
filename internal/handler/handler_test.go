@@ -38,6 +38,7 @@ func setupTestServer(t *testing.T) (*Handler, http.Handler, func()) {
 		"../../templates/partials/attachments.html",
 		"../../templates/partials/review_step.html",
 		"../../templates/partials/search_results.html",
+		"../../templates/partials/launchers_modal.html",
 	)
 	if err != nil {
 		t.Fatalf("ParseFiles failed: %v", err)
@@ -61,6 +62,12 @@ func setupTestServer(t *testing.T) (*Handler, http.Handler, func()) {
 	mux.HandleFunc("GET /items/{id}/attachments", h.GetAttachments)
 	mux.HandleFunc("POST /attachments/{id}/open", h.OpenAttachment)
 	mux.HandleFunc("DELETE /attachments/{id}", h.DeleteAttachment)
+	mux.HandleFunc("GET /partials/launchers", h.ServeLauncherModal)
+	mux.HandleFunc("POST /launchers", h.CreateLauncher)
+	mux.HandleFunc("GET /launchers/{id}/edit", h.GetLauncherEditForm)
+	mux.HandleFunc("PUT /launchers/{id}", h.UpdateLauncher)
+	mux.HandleFunc("DELETE /launchers/{id}", h.DeleteLauncher)
+	mux.HandleFunc("POST /launchers/{id}/launch", h.LaunchApp)
 	mux.HandleFunc("POST /projects", h.CreateProject)
 	mux.HandleFunc("PUT /projects/{id}", h.UpdateProject)
 	mux.HandleFunc("PATCH /projects/{id}/status", h.UpdateProjectStatus)
@@ -1175,6 +1182,150 @@ func TestSearchHandler(t *testing.T) {
 	noResultBody := rec.Body.String()
 	if !strings.Contains(noResultBody, "一致する結果は見つかりませんでした") {
 		t.Errorf("expected empty state message, got: %s", noResultBody)
+	}
+}
+
+func TestLauncherHandlers(t *testing.T) {
+	_, mux, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// 1. GET /partials/launchers (初期空状態のモーダル描画)
+	req := httptest.NewRequest("GET", "/partials/launchers", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "アプリケーションランチャー") {
+		t.Errorf("expected modal title in body, got: %s", body)
+	}
+	if !strings.Contains(body, "ランチャーがまだ登録されていません") {
+		t.Errorf("expected empty state in body, got: %s", body)
+	}
+
+	// 2. POST /launchers (新規登録)
+	// 一時ファイルを作成してパスとして使用
+	tmpFile, err := os.CreateTemp("", "gtd_test_launcher_*.txt")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpPath := tmpFile.Name()
+
+	form := url.Values{}
+	form.Set("name", "テストメモ帳")
+	form.Set("target", tmpPath)
+	form.Set("description", "メモ 記録")
+	req = httptest.NewRequest("POST", "/launchers", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if trigger := rec.Header().Get("HX-Trigger"); !strings.Contains(trigger, "showToast") {
+		t.Errorf("expected HX-Trigger to contain showToast, got %s", trigger)
+	}
+	createdBody := rec.Body.String()
+	if !strings.Contains(createdBody, "テストメモ帳") {
+		t.Errorf("expected created launcher in modal body, got: %s", createdBody)
+	}
+
+	// 3. GET /launchers/1/edit (編集モーダル取得)
+	req = httptest.NewRequest("GET", "/launchers/1/edit", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", rec.Code)
+	}
+	editBody := rec.Body.String()
+	if !strings.Contains(editBody, "ランチャーの編集") {
+		t.Errorf("expected edit mode in body, got: %s", editBody)
+	}
+
+	// 4. PUT /launchers/1 (更新)
+	formUpdate := url.Values{}
+	formUpdate.Set("name", "更新テストメモ帳")
+	formUpdate.Set("target", tmpPath)
+	formUpdate.Set("type", "file")
+	formUpdate.Set("description", "更新メモ")
+	req = httptest.NewRequest("PUT", "/launchers/1", strings.NewReader(formUpdate.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", rec.Code)
+	}
+	updatedBody := rec.Body.String()
+	if !strings.Contains(updatedBody, "更新テストメモ帳") {
+		t.Errorf("expected updated launcher name in body, got: %s", updatedBody)
+	}
+
+	// 5. POST /launchers/1/launch (正常起動テスト)
+	// モックオープン関数を設定して安全にテスト
+	originalOpen := openFileFunc
+	openedTarget := ""
+	openFileFunc = func(target string) error {
+		openedTarget = target
+		return nil
+	}
+	defer func() { openFileFunc = originalOpen }()
+
+	req = httptest.NewRequest("POST", "/launchers/1/launch", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for launch, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if openedTarget != tmpPath {
+		t.Errorf("expected openFileFunc to be called with %q, got %q", tmpPath, openedTarget)
+	}
+	if trigger := rec.Header().Get("HX-Trigger"); !strings.Contains(trigger, "showToast") {
+		t.Errorf("expected HX-Trigger to contain showToast, got %s", trigger)
+	}
+
+	// 6. POST /launchers/2/launch (存在しないランチャーID -> 404)
+	req = httptest.NewRequest("POST", "/launchers/999/launch", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("expected 404 Not Found for nonexistent ID, got %d", rec.Code)
+	}
+
+	// 7. パスが存在しない場合の起動テスト -> 404 Not Found & パスエラーメッセージ
+	formBad := url.Values{}
+	formBad.Set("name", "壊れたパスアプリ")
+	formBad.Set("target", "/nonexistent/fake/file/path_12345.exe")
+	req = httptest.NewRequest("POST", "/launchers", strings.NewReader(formBad.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for creating launcher, got %d", rec.Code)
+	}
+
+	req = httptest.NewRequest("POST", "/launchers/2/launch", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("expected 404 Not Found for missing target file, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "見つかりません") {
+		t.Errorf("expected error message to mention not found, got %s", rec.Body.String())
+	}
+
+	// 8. DELETE /launchers/1 (削除)
+	req = httptest.NewRequest("DELETE", "/launchers/1", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for delete, got %d", rec.Code)
+	}
+	deleteBody := rec.Body.String()
+	if strings.Contains(deleteBody, "更新テストメモ帳") {
+		t.Errorf("expected deleted launcher to disappear, got: %s", deleteBody)
 	}
 }
 

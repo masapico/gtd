@@ -72,5 +72,14 @@ func TestEmbeddedServer(t *testing.T) {
 	if !strings.Contains(body, "content-title") {
 		t.Errorf("expected content-title in body, got: %s", body)
 	}
+	if !strings.Contains(body, "topbar-launcher-btn") {
+		t.Errorf("expected topbar-launcher-btn in body, got: %s", body)
+	}
+	if !strings.Contains(body, "topbar-clock") {
+		t.Errorf("expected topbar-clock in body, got: %s", body)
+	}
+	if !strings.Contains(body, "id=\"modal-container\"") {
+		t.Errorf("expected modal-container in body, got: %s", body)
+	}
 }
 

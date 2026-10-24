@@ -323,9 +323,49 @@ type ItemFilter struct {
 	Search    string
 }
 
+// Launcher はよく使うアプリやファイル、URLを開くためのショートカットを表します
+type Launcher struct {
+	ID          int64     `json:"id"`
+	Name        string    `json:"name"`
+	Target      string    `json:"target"`      // 実行可能ファイルパス、フォルダパス、URL
+	Type        string    `json:"type"`        // 'app', 'folder', 'file', 'url'
+	Description string    `json:"description"` // 説明または検索キーワード
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// TypeLabel は種別の日本語ラベルを返します
+func (l Launcher) TypeLabel() string {
+	switch l.Type {
+	case "app":
+		return "アプリ"
+	case "folder":
+		return "フォルダー"
+	case "url":
+		return "Webリンク"
+	case "file":
+		return "ファイル"
+	default:
+		return "ランチャー"
+	}
+}
+
+// CleanTargetName はターゲットの簡潔な表示名を返します
+func (l Launcher) CleanTargetName() string {
+	if l.Type == "url" {
+		return l.Target
+	}
+	parts := strings.Split(strings.ReplaceAll(l.Target, "\\", "/"), "/")
+	if len(parts) > 0 {
+		return parts[len(parts)-1]
+	}
+	return l.Target
+}
+
 // OmniSearchResult はオムニサーチ全体の検索結果を表します
 type OmniSearchResult struct {
 	Query       string                 `json:"query"`
+	Launchers   []Launcher             `json:"launchers"`
 	Items       []Item                 `json:"items"`
 	Attachments []OmniAttachmentResult `json:"attachments"`
 	TotalCount  int                    `json:"total_count"`

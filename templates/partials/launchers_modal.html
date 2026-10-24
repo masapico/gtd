@@ -1,0 +1,224 @@
+<div class="modal-dialog" onclick="event.stopPropagation();">
+  <!-- Modal Header -->
+  <div class="modal-header">
+    <div class="modal-title-group">
+      <div class="modal-title-row">
+        <span class="modal-icon">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+            <path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/>
+          </svg>
+        </span>
+        <h2 class="modal-title">アプリケーションランチャー</h2>
+      </div>
+      <p class="modal-subtitle">よく使うアプリやフォルダー、Webサイトを登録してオムニサーチから素早く起動します</p>
+    </div>
+    <button type="button" class="modal-close-btn" onclick="closeModal()" title="閉じる (Esc)" aria-label="閉じる">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Modal Body -->
+  <div class="modal-body">
+    <!-- Form Section (Create or Edit) -->
+    <div class="launcher-form-card">
+      <div class="launcher-form-header">
+        <span class="launcher-form-title">
+          {{if .EditLauncher}}
+            ランチャーの編集
+          {{else}}
+            新しいランチャーを追加
+          {{end}}
+        </span>
+        {{if .EditLauncher}}
+          <button type="button" 
+                  class="btn-text-cancel" 
+                  hx-get="/partials/launchers" 
+                  hx-target="#modal-container"
+                  title="編集をキャンセル">キャンセル</button>
+        {{end}}
+      </div>
+
+      <form {{if .EditLauncher}}hx-put="/launchers/{{.EditLauncher.ID}}"{{else}}hx-post="/launchers"{{end}}
+            hx-target="#modal-container"
+            class="launcher-form">
+        <div class="launcher-form-grid">
+          <!-- Name Field -->
+          <div class="form-group form-col-name">
+            <label for="launcher-name-input" class="form-label">名前 <span class="required-mark">*</span></label>
+            <input type="text" 
+                   id="launcher-name-input" 
+                   name="name" 
+                   class="form-control" 
+                   placeholder="例: VS Code、社内勤怠、日報フォルダー" 
+                   value="{{if .EditLauncher}}{{.EditLauncher.Name}}{{end}}"
+                   required 
+                   autocomplete="off">
+          </div>
+
+          <!-- Type Field -->
+          <div class="form-group form-col-type">
+            <label for="launcher-type-select" class="form-label">種別</label>
+            <select id="launcher-type-select" name="type" class="form-control form-select">
+              <option value="" {{if not .EditLauncher}}selected{{end}}>自動判定</option>
+              <option value="app" {{if and .EditLauncher (eq .EditLauncher.Type "app")}}selected{{end}}>アプリ (実行ファイル)</option>
+              <option value="folder" {{if and .EditLauncher (eq .EditLauncher.Type "folder")}}selected{{end}}>フォルダー</option>
+              <option value="file" {{if and .EditLauncher (eq .EditLauncher.Type "file")}}selected{{end}}>ファイル</option>
+              <option value="url" {{if and .EditLauncher (eq .EditLauncher.Type "url")}}selected{{end}}>Webリンク (URL)</option>
+            </select>
+          </div>
+
+          <!-- Target Field (Path or URL) -->
+          <div class="form-group form-col-full">
+            <label for="launcher-target-input" class="form-label">パス または URL <span class="required-mark">*</span></label>
+            <input type="text" 
+                   id="launcher-target-input" 
+                   name="target" 
+                   class="form-control" 
+                   placeholder="例: C:\Program Files\...\Code.exe または /Applications/... または https://..." 
+                   value="{{if .EditLauncher}}{{.EditLauncher.Target}}{{end}}"
+                   required 
+                   autocomplete="off">
+            <span class="form-hint">Windows/Macのファイル・アプリパス、共有フォルダー(\\server\...)、Web URLに対応</span>
+          </div>
+
+          <!-- Description / Keywords Field -->
+          <div class="form-group form-col-full">
+            <label for="launcher-desc-input" class="form-label">説明・検索キーワード (任意)</label>
+            <input type="text" 
+                   id="launcher-desc-input" 
+                   name="description" 
+                   class="form-control" 
+                   placeholder="例: エディタ 開発、打刻 出勤 (オムニサーチの検索対象になります)" 
+                   value="{{if .EditLauncher}}{{.EditLauncher.Description}}{{end}}"
+                   autocomplete="off">
+          </div>
+        </div>
+
+        <div class="launcher-form-actions">
+          <button type="submit" class="btn btn-primary">
+            {{if .EditLauncher}}
+              <span>更新する</span>
+            {{else}}
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+              </svg>
+              <span>登録する</span>
+            {{end}}
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Launcher List Section -->
+    <div class="launcher-list-section">
+      <div class="launcher-list-header">
+        <h3 class="launcher-list-title">登録済みランチャー</h3>
+        <span class="launcher-count-badge">{{len .Launchers}}件</span>
+      </div>
+
+      {{if eq (len .Launchers) 0}}
+        <div class="launcher-empty-state">
+          <svg class="launcher-empty-icon" viewBox="0 0 24 24" width="40" height="40" fill="currentColor">
+            <path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/>
+          </svg>
+          <div class="launcher-empty-text">ランチャーがまだ登録されていません</div>
+          <div class="launcher-empty-sub">上のフォームからよく使うアプリケーションやファイル、Webサイトを登録してください</div>
+        </div>
+      {{else}}
+        <div class="launcher-items-list">
+          {{range .Launchers}}
+            <div class="launcher-card-row" id="launcher-row-{{.ID}}">
+              <!-- Type Icon -->
+              <span class="launcher-type-icon {{.Type}}" title="{{.TypeLabel}}">
+                {{if eq .Type "app"}}
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                    <path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/>
+                  </svg>
+                {{else if eq .Type "folder"}}
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                    <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+                  </svg>
+                {{else if eq .Type "url"}}
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                    <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/>
+                  </svg>
+                {{else}}
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                    <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+                  </svg>
+                {{end}}
+              </span>
+
+              <!-- Content Info -->
+              <div class="launcher-card-info">
+                <div class="launcher-card-title-row">
+                  <span class="launcher-card-name">{{.Name}}</span>
+                  <span class="launcher-tag launcher-tag-{{.Type}}">{{.TypeLabel}}</span>
+                </div>
+                <div class="launcher-card-target" title="{{.Target}}">{{.Target}}</div>
+                {{if .Description}}
+                  <div class="launcher-card-desc">
+                    <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                      <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+                    </svg>
+                    <span>{{.Description}}</span>
+                  </div>
+                {{end}}
+              </div>
+
+              <!-- Action Buttons -->
+              <div class="launcher-card-actions">
+                <!-- Open / Launch Test Button -->
+                <button type="button" 
+                        class="btn-launcher-action btn-launcher-open" 
+                        hx-post="/launchers/{{.ID}}/launch"
+                        hx-swap="none"
+                        title="起動する (テスト実行)">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+                    <path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/>
+                  </svg>
+                  <span>開く</span>
+                </button>
+
+                <!-- Edit Button -->
+                <button type="button" 
+                        class="btn-launcher-action btn-launcher-edit" 
+                        hx-get="/launchers/{{.ID}}/edit"
+                        hx-target="#modal-container"
+                        title="編集">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                  </svg>
+                  <span>編集</span>
+                </button>
+
+                <!-- Delete Button -->
+                <button type="button" 
+                        class="btn-launcher-action btn-launcher-delete" 
+                        hx-delete="/launchers/{{.ID}}"
+                        hx-target="#modal-container"
+                        hx-confirm="ランチャー「{{.Name}}」を削除しますか？"
+                        title="削除">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          {{end}}
+        </div>
+      {{end}}
+    </div>
+  </div>
+
+  <!-- Modal Footer -->
+  <div class="modal-footer">
+    <div class="modal-footer-hint">
+      <span class="key-badge">Ctrl+F</span> または <span class="key-badge">Ctrl+L</span> でいつでも呼び出せます
+    </div>
+    <button type="button" class="btn btn-secondary" onclick="closeModal()">閉じる</button>
+  </div>
+</div>
+

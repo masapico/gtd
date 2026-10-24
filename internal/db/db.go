@@ -101,10 +101,22 @@ func migrateSchema(db *sql.DB) error {
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
 
+	-- 6. アプリケーションランチャー
+	CREATE TABLE IF NOT EXISTS launchers (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		target TEXT NOT NULL,
+		type TEXT NOT NULL DEFAULT 'app', -- 'app', 'folder', 'file', 'url'
+		description TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+
 	-- インデックス
 	CREATE INDEX IF NOT EXISTS idx_items_status ON items(status);
 	CREATE INDEX IF NOT EXISTS idx_items_project ON items(project_id);
 	CREATE INDEX IF NOT EXISTS idx_attachments_item ON attachments(item_id);
+	CREATE INDEX IF NOT EXISTS idx_launchers_name ON launchers(name);
 	`
 
 	if _, err := db.Exec(schema); err != nil {

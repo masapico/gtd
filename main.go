@@ -94,6 +94,14 @@ func main() {
 	mux.HandleFunc("POST /attachments/{id}/open", h.OpenAttachment)
 	mux.HandleFunc("DELETE /attachments/{id}", h.DeleteAttachment)
 
+	// Launchers (CRUD & OS起動)
+	mux.HandleFunc("GET /partials/launchers", h.ServeLauncherModal)
+	mux.HandleFunc("POST /launchers", h.CreateLauncher)
+	mux.HandleFunc("GET /launchers/{id}/edit", h.GetLauncherEditForm)
+	mux.HandleFunc("PUT /launchers/{id}", h.UpdateLauncher)
+	mux.HandleFunc("DELETE /launchers/{id}", h.DeleteLauncher)
+	mux.HandleFunc("POST /launchers/{id}/launch", h.LaunchApp)
+
 	// Weekly Review
 	mux.HandleFunc("GET /review", h.StartReview)
 	mux.HandleFunc("GET /review/step/{step}", h.ReviewStep)

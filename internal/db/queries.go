@@ -1015,8 +1015,162 @@ func SearchOmni(database *sql.DB, query string, itemLimit, attachLimit int) (*mo
 		result.Attachments = append(result.Attachments, a)
 	}
 
-	result.TotalCount = len(result.Items) + len(result.Attachments)
+	// 3. Launchers 検索（名前、キーワード/説明、パスを検索）
+	launchers, err := SearchLaunchers(database, query, 10)
+	if err != nil {
+		return nil, fmt.Errorf("launcher search failed: %w", err)
+	}
+	result.Launchers = launchers
+
+	result.TotalCount = len(result.Launchers) + len(result.Items) + len(result.Attachments)
 	return result, nil
+}
+
+// CreateLauncher は新しいランチャーを作成します
+func CreateLauncher(database *sql.DB, l *model.Launcher) (int64, error) {
+	if l.Type == "" {
+		l.Type = "app"
+	}
+	query := `
+		INSERT INTO launchers (name, target, type, description)
+		VALUES (?, ?, ?, ?)
+	`
+	res, err := database.Exec(query, l.Name, l.Target, l.Type, l.Description)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create launcher: %w", err)
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get launcher last insert id: %w", err)
+	}
+	l.ID = id
+	return id, nil
+}
+
+// GetLauncherByID は指定されたIDのランチャーを取得します
+func GetLauncherByID(database *sql.DB, id int64) (*model.Launcher, error) {
+	query := `
+		SELECT id, name, target, type, COALESCE(description, ''), created_at, updated_at
+		FROM launchers
+		WHERE id = ?
+	`
+	var l model.Launcher
+	err := database.QueryRow(query, id).Scan(
+		&l.ID, &l.Name, &l.Target, &l.Type, &l.Description, &l.CreatedAt, &l.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &l, nil
+}
+
+// GetAllLaunchers はすべてのランチャーを名前順で取得します
+func GetAllLaunchers(database *sql.DB) ([]model.Launcher, error) {
+	query := `
+		SELECT id, name, target, type, COALESCE(description, ''), created_at, updated_at
+		FROM launchers
+		ORDER BY name COLLATE NOCASE ASC, id ASC
+	`
+	rows, err := database.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query all launchers: %w", err)
+	}
+	defer rows.Close()
+
+	var launchers []model.Launcher
+	for rows.Next() {
+		var l model.Launcher
+		if err := rows.Scan(
+			&l.ID, &l.Name, &l.Target, &l.Type, &l.Description, &l.CreatedAt, &l.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan launcher: %w", err)
+		}
+		launchers = append(launchers, l)
+	}
+	return launchers, nil
+}
+
+// UpdateLauncher は既存のランチャーを更新します
+func UpdateLauncher(database *sql.DB, l *model.Launcher) error {
+	if l.Type == "" {
+		l.Type = "app"
+	}
+	query := `
+		UPDATE launchers
+		SET name = ?, target = ?, type = ?, description = ?, updated_at = CURRENT_TIMESTAMP
+		WHERE id = ?
+	`
+	res, err := database.Exec(query, l.Name, l.Target, l.Type, l.Description, l.ID)
+	if err != nil {
+		return fmt.Errorf("failed to update launcher: %w", err)
+	}
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+// DeleteLauncher は指定されたIDのランチャーを削除します
+func DeleteLauncher(database *sql.DB, id int64) error {
+	query := `DELETE FROM launchers WHERE id = ?`
+	res, err := database.Exec(query, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete launcher: %w", err)
+	}
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+// SearchLaunchers は名前、説明、ターゲットからランチャーを検索します
+func SearchLaunchers(database *sql.DB, query string, limit int) ([]model.Launcher, error) {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+
+	searchTerm := "%" + query + "%"
+	prefixTerm := query + "%"
+
+	sqlQuery := `
+		SELECT id, name, target, type, COALESCE(description, ''), created_at, updated_at
+		FROM launchers
+		WHERE name LIKE ? OR description LIKE ? OR target LIKE ?
+		ORDER BY
+			CASE WHEN name LIKE ? THEN 0 ELSE 1 END,
+			CASE WHEN name LIKE ? THEN 0 ELSE 1 END,
+			name COLLATE NOCASE ASC
+		LIMIT ?
+	`
+	rows, err := database.Query(sqlQuery, searchTerm, searchTerm, searchTerm, prefixTerm, searchTerm, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search launchers: %w", err)
+	}
+	defer rows.Close()
+
+	var list []model.Launcher
+	for rows.Next() {
+		var l model.Launcher
+		if err := rows.Scan(
+			&l.ID, &l.Name, &l.Target, &l.Type, &l.Description, &l.CreatedAt, &l.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan launcher row: %w", err)
+		}
+		list = append(list, l)
+	}
+	return list, nil
 }
 
 

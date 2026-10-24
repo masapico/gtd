@@ -450,4 +450,111 @@ func TestSearchOmni(t *testing.T) {
 	}
 }
 
+func TestLauncherCRUDAndSearch(t *testing.T) {
+	dbPath := setupTestDB(t)
+	db, err := InitDB(dbPath)
+	if err != nil {
+		t.Fatalf("InitDB failed: %v", err)
+	}
+	defer db.Close()
+
+	// 1. 作成
+	l1 := &model.Launcher{
+		Name:        "Visual Studio Code",
+		Target:      `C:\Program Files\Microsoft VS Code\Code.exe`,
+		Type:        "app",
+		Description: "エディタ 開発 IDE",
+	}
+	id1, err := CreateLauncher(db, l1)
+	if err != nil {
+		t.Fatalf("CreateLauncher 1 failed: %v", err)
+	}
+	if id1 <= 0 {
+		t.Errorf("expected valid id, got %d", id1)
+	}
+
+	l2 := &model.Launcher{
+		Name:        "社内勤怠システム",
+		Target:      "https://kintai.internal.corp",
+		Type:        "url",
+		Description: "打刻 出勤 退勤",
+	}
+	id2, err := CreateLauncher(db, l2)
+	if err != nil {
+		t.Fatalf("CreateLauncher 2 failed: %v", err)
+	}
+
+	// 2. ID取得
+	got1, err := GetLauncherByID(db, id1)
+	if err != nil {
+		t.Fatalf("GetLauncherByID failed: %v", err)
+	}
+	if got1.Name != "Visual Studio Code" || got1.Type != "app" {
+		t.Errorf("unexpected launcher: %+v", got1)
+	}
+
+	// 3. 全件取得
+	all, err := GetAllLaunchers(db)
+	if err != nil {
+		t.Fatalf("GetAllLaunchers failed: %v", err)
+	}
+	if len(all) != 2 {
+		t.Errorf("expected 2 launchers, got %d", len(all))
+	}
+
+	// 4. 更新
+	got1.Name = "VS Code"
+	got1.Description = "コードエディタ"
+	if err := UpdateLauncher(db, got1); err != nil {
+		t.Fatalf("UpdateLauncher failed: %v", err)
+	}
+	updated, err := GetLauncherByID(db, id1)
+	if err != nil {
+		t.Fatalf("GetLauncherByID after update failed: %v", err)
+	}
+	if updated.Name != "VS Code" || updated.Description != "コードエディタ" {
+		t.Errorf("launcher not updated correctly: %+v", updated)
+	}
+
+	// 5. 検索 (SearchLaunchers)
+	// 5-1. 名前で検索 ("VS")
+	s1, err := SearchLaunchers(db, "VS", 10)
+	if err != nil {
+		t.Fatalf("SearchLaunchers failed: %v", err)
+	}
+	if len(s1) != 1 || s1[0].ID != id1 {
+		t.Errorf("expected to find VS Code, got %d items", len(s1))
+	}
+
+	// 5-2. キーワードで検索 ("打刻")
+	s2, err := SearchLaunchers(db, "打刻", 10)
+	if err != nil {
+		t.Fatalf("SearchLaunchers failed: %v", err)
+	}
+	if len(s2) != 1 || s2[0].ID != id2 {
+		t.Errorf("expected to find 勤怠システム by description, got %d items", len(s2))
+	}
+
+	// 6. SearchOmni との統合検索テスト
+	omniRes, err := SearchOmni(db, "打刻", 10, 10)
+	if err != nil {
+		t.Fatalf("SearchOmni failed: %v", err)
+	}
+	if len(omniRes.Launchers) != 1 || omniRes.Launchers[0].ID != id2 {
+		t.Errorf("expected SearchOmni to include launcher, got %d launchers", len(omniRes.Launchers))
+	}
+	if omniRes.TotalCount != 1 {
+		t.Errorf("expected TotalCount 1, got %d", omniRes.TotalCount)
+	}
+
+	// 7. 削除
+	if err := DeleteLauncher(db, id1); err != nil {
+		t.Fatalf("DeleteLauncher failed: %v", err)
+	}
+	allAfterDelete, _ := GetAllLaunchers(db)
+	if len(allAfterDelete) != 1 {
+		t.Errorf("expected 1 launcher after delete, got %d", len(allAfterDelete))
+	}
+}
+
 
