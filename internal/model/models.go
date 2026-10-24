@@ -106,15 +106,31 @@ func (i Item) HasContext(ctxID int64) bool {
 	return false
 }
 
-// DueDateClass は期日に応じたCSSクラスを返します（超過、今日、将来）
-func (i Item) DueDateClass() string {
+// FormattedDueDate はYYYY-MM-DD形式の期日文字列を返します
+func (i Item) FormattedDueDate() string {
 	if i.DueDate == nil || *i.DueDate == "" {
 		return ""
 	}
+	s := *i.DueDate
+	if idx := strings.Index(s, "T"); idx != -1 {
+		return s[:idx]
+	}
+	if len(s) > 10 {
+		return s[:10]
+	}
+	return s
+}
+
+// DueDateClass は期日に応じたCSSクラスを返します（超過、今日、将来）
+func (i Item) DueDateClass() string {
+	d := i.FormattedDueDate()
+	if d == "" {
+		return ""
+	}
 	today := time.Now().Format("2006-01-02")
-	if *i.DueDate < today {
+	if d < today {
 		return "due-overdue"
-	} else if *i.DueDate == today {
+	} else if d == today {
 		return "due-today"
 	}
 	return "due-future"
@@ -142,6 +158,8 @@ type SidebarCounts struct {
 	Done            int
 	Projects        int
 	StalledProjects int
+	DoneProjects    int
+	SomedayProjects int
 }
 
 // ItemFilter は中央リスト表示時の絞り込み条件です

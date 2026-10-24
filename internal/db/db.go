@@ -70,7 +70,7 @@ func migrateSchema(db *sql.DB) error {
 		title TEXT NOT NULL,
 		body TEXT,
 		status TEXT NOT NULL DEFAULT 'inbox', -- 'inbox', 'next', 'waiting', 'someday', 'reference', 'done'
-		due_date DATE,
+		due_date TEXT,
 		recurrence TEXT NOT NULL DEFAULT 'none', -- 'none', 'daily', 'weekdays', 'weekly', 'monthly', 'yearly'
 		last_reviewed_at DATETIME,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

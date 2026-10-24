@@ -35,6 +35,9 @@ type ItemListData struct {
 	ProjectID      *int64
 	ContextID      *int64
 	Search         string
+	Projects       []model.Project
+	ProjectStatus  string
+	Counts         model.SidebarCounts
 }
 
 func (h *Handler) buildSidebarData(view string, selectedProjectID int64) SidebarData {
@@ -51,7 +54,7 @@ func (h *Handler) buildSidebarData(view string, selectedProjectID int64) Sidebar
 	}
 }
 
-func (h *Handler) buildItemListData(view string, pID *int64, cID *int64, search string) (ItemListData, error) {
+func (h *Handler) buildItemListData(view string, pID *int64, cID *int64, search string, projectStatus string) (ItemListData, error) {
 	if view == "" {
 		view = "inbox"
 	}
@@ -59,17 +62,36 @@ func (h *Handler) buildItemListData(view string, pID *int64, cID *int64, search 
 		view = "project"
 	}
 
-	items, err := db.GetItems(h.DB, model.ItemFilter{
-		View:      view,
-		ProjectID: pID,
-		ContextID: cID,
-		Search:    search,
-	})
-	if err != nil {
-		return ItemListData{}, err
-	}
-
+	counts, _ := db.GetSidebarCounts(h.DB)
 	contexts, _ := db.GetContexts(h.DB)
+
+	var items []model.Item
+	var err error
+	var projects []model.Project
+
+	if view == "projects" {
+		if projectStatus == "" {
+			projectStatus = "all"
+		}
+		statusQuery := projectStatus
+		if projectStatus == "all" {
+			statusQuery = ""
+		}
+		projects, err = db.GetProjects(h.DB, statusQuery)
+		if err != nil {
+			return ItemListData{}, err
+		}
+	} else {
+		items, err = db.GetItems(h.DB, model.ItemFilter{
+			View:      view,
+			ProjectID: pID,
+			ContextID: cID,
+			Search:    search,
+		})
+		if err != nil {
+			return ItemListData{}, err
+		}
+	}
 
 	var currentProject *model.Project
 	if pID != nil {
@@ -113,6 +135,9 @@ func (h *Handler) buildItemListData(view string, pID *int64, cID *int64, search 
 			title = "Projects"
 			description = "複数の行動を要するゴール。"
 		}
+	case "projects":
+		title = "プロジェクト管理・履歴"
+		description = "進行中・保留中・完了済みの全プロジェクトの確認とステータス変更。"
 	}
 
 	if currentContext != nil {
@@ -130,6 +155,9 @@ func (h *Handler) buildItemListData(view string, pID *int64, cID *int64, search 
 		ProjectID:      pID,
 		ContextID:      cID,
 		Search:         search,
+		Projects:       projects,
+		ProjectStatus:  projectStatus,
+		Counts:         counts,
 	}, nil
 }
 
@@ -157,9 +185,10 @@ func (h *Handler) ServeIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	search := r.URL.Query().Get("search")
+	projectStatus := r.URL.Query().Get("project_status")
 
 	sidebarData := h.buildSidebarData(view, selectedID)
-	itemListData, err := h.buildItemListData(view, pID, cID, search)
+	itemListData, err := h.buildItemListData(view, pID, cID, search, projectStatus)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -211,8 +240,9 @@ func (h *Handler) ServeItemList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	search := r.URL.Query().Get("search")
+	projectStatus := r.URL.Query().Get("project_status")
 
-	data, err := h.buildItemListData(view, pID, cID, search)
+	data, err := h.buildItemListData(view, pID, cID, search, projectStatus)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

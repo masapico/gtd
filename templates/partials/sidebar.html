@@ -71,13 +71,8 @@
     <span class="nav-label">Done</span>
     <span class="badge">{{.Counts.Done}}</span>
   </a>
-</div>
 
-<div class="sidebar-divider"></div>
-
-<!-- Weekly Review Trigger -->
-<div class="sidebar-section">
-  <a class="nav-item review-nav-btn" 
+  <a class="nav-item nav-review-item" 
      hx-get="/review/step/1" 
      hx-target="#main-content-pane" 
      onclick="closeDetailPane()">
@@ -97,26 +92,27 @@
 <div class="sidebar-section">
   <div class="sidebar-section-title">
     <span>Contexts</span>
+    <span class="badge">{{len .Contexts}}</span>
   </div>
-  {{range .Contexts}}
-    <a class="nav-item" 
-       hx-get="/partials/items?view=next&context_id={{.ID}}" 
-       hx-target="#main-content-pane" 
-       onclick="closeDetailPane()">
-      <svg class="nav-icon" viewBox="0 0 24 24" style="width:16px;height:16px;">
-        <path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z"/>
-      </svg>
-      <span class="nav-label">{{.Name}}</span>
-      {{if gt .ItemCount 0}}
-        <span class="badge">{{.ItemCount}}</span>
-      {{end}}
-    </a>
-  {{end}}
+  <div class="sidebar-chips-container">
+    {{range .Contexts}}
+      <a class="sidebar-context-chip" 
+         hx-get="/partials/items?view=next&context_id={{.ID}}" 
+         hx-target="#main-content-pane" 
+         onclick="closeDetailPane()"
+         title="{{.Name}}">
+        <span>{{.Name}}</span>
+        {{if gt .ItemCount 0}}
+          <span class="chip-count">{{.ItemCount}}</span>
+        {{end}}
+      </a>
+    {{end}}
+  </div>
 
   <!-- Mini Add Context Form -->
   <form class="mini-add-form" hx-post="/contexts" hx-swap="none" onsubmit="setTimeout(() => { this.reset(); }, 30)">
     <input class="mini-add-input" name="name" placeholder="+ @場所・状況" required autocomplete="off">
-    <button class="mini-add-btn" style="white-space: nowrap;" type="submit">追加</button>
+    <button class="mini-add-btn" type="submit">追加</button>
   </form>
 </div>
 
@@ -125,31 +121,47 @@
 <!-- Projects -->
 <div class="sidebar-section">
   <div class="sidebar-section-title">
-    <span>Projects</span>
-    <span class="badge">{{len .Projects}}</span>
+    <span hx-get="/partials/items?view=projects" hx-target="#main-content-pane" style="cursor: pointer;" title="プロジェクト管理・一覧を開く">Projects</span>
+    <a hx-get="/partials/items?view=projects" hx-target="#main-content-pane" class="badge" style="cursor: pointer; text-decoration: none;" title="すべてのプロジェクト一覧・管理">管理 ({{len .Projects}})</a>
   </div>
-  {{range .Projects}}
-    <a class="nav-item {{if .IsStalled}}stalled-nav{{end}}" 
-       hx-get="/partials/items?project_id={{.ID}}" 
+  <div class="sidebar-projects-list">
+    {{range .Projects}}
+      <a class="nav-item compact-project {{if .IsStalled}}stalled-nav{{end}}" 
+         hx-get="/partials/items?project_id={{.ID}}" 
+         hx-target="#main-content-pane" 
+         onclick="closeDetailPane()"
+         title="{{.Name}}{{if .IsStalled}} (Next Action 0件) {{end}}">
+        <svg class="nav-icon" viewBox="0 0 24 24" style="width:15px;height:15px;{{if .IsStalled}}color:#b45309;{{end}}">
+          <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+        </svg>
+        <span class="nav-label">{{.Name}}</span>
+        {{if eq .NextActionCount 0}}
+          <span class="badge badge-alert" title="Next Actionがありません">0</span>
+        {{else}}
+          <span class="badge">{{.NextActionCount}}</span>
+        {{end}}
+      </a>
+    {{end}}
+  </div>
+
+  {{if or (gt .Counts.DoneProjects 0) (gt .Counts.SomedayProjects 0)}}
+    <a class="nav-item compact-project" 
+       hx-get="/partials/items?view=projects&project_status=done" 
        hx-target="#main-content-pane" 
        onclick="closeDetailPane()"
-       title="{{.Name}}{{if .IsStalled}} (Next Action 0件) {{end}}">
-      <svg class="nav-icon" viewBox="0 0 24 24" style="width:16px;height:16px;{{if .IsStalled}}color:#e65100;{{end}}">
-        <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+       style="color: var(--md-sys-color-outline); margin-top: 2px;"
+       title="完了・保留プロジェクトを表示">
+      <svg class="nav-icon" viewBox="0 0 24 24" style="width:14px;height:14px;">
+        <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
       </svg>
-      <span class="nav-label">{{.Name}}</span>
-      {{if eq .NextActionCount 0}}
-        <span class="badge badge-alert" title="Next Actionがありません">0</span>
-      {{else}}
-        <span class="badge">{{.NextActionCount}}</span>
-      {{end}}
+      <span class="nav-label">完了・保留プロジェクト</span>
+      <span class="badge">{{add .Counts.DoneProjects .Counts.SomedayProjects}}</span>
     </a>
   {{end}}
 
   <!-- Mini Add Project Form -->
   <form class="mini-add-form" hx-post="/projects" hx-swap="none" onsubmit="setTimeout(() => { this.reset(); }, 30)">
     <input class="mini-add-input" name="name" placeholder="+ プロジェクト名" required autocomplete="off">
-    <button class="mini-add-btn" style="white-space: nowrap;" type="submit">作成</button>
+    <button class="mini-add-btn" type="submit">作成</button>
   </form>
 </div>
-

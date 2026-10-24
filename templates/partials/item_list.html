@@ -7,18 +7,62 @@
     <div>
       {{if eq .View "project"}}
         {{if .CurrentProject}}
-          <button class="btn-small" 
-                  hx-patch="/projects/{{.CurrentProject.ID}}/status" 
-                  hx-vals='{"status": "{{if eq .CurrentProject.Status "active"}}someday{{else}}active{{end}}"}' 
-                  hx-swap="none">
-            {{if eq .CurrentProject.Status "active"}}保留(Someday)へ{{else}}アクティブへ復帰{{end}}
-          </button>
-          <button class="btn-small" 
-                  hx-patch="/projects/{{.CurrentProject.ID}}/status" 
-                  hx-vals='{"status": "done"}' 
-                  hx-swap="none">
-            プロジェクト完了
-          </button>
+          <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+            {{if eq .CurrentProject.Status "done"}}
+              <span class="badge" style="background-color: #d1e7dd; color: #0f5132; font-weight: 600;">完了済み</span>
+              <button class="btn-small" 
+                      hx-patch="/projects/{{.CurrentProject.ID}}/status" 
+                      hx-vals='{"status": "active"}' 
+                      hx-swap="none"
+                      style="background-color: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); font-weight: 600;"
+                      title="プロジェクトを進行中に戻す">
+                アクティブに戻す
+              </button>
+              <button class="btn-small" 
+                      hx-patch="/projects/{{.CurrentProject.ID}}/status" 
+                      hx-vals='{"status": "someday"}' 
+                      hx-swap="none">
+                保留(Someday)へ
+              </button>
+            {{else if eq .CurrentProject.Status "someday"}}
+              <span class="badge" style="background-color: #fff3cd; color: #664d03; font-weight: 600;">保留中</span>
+              <button class="btn-small" 
+                      hx-patch="/projects/{{.CurrentProject.ID}}/status" 
+                      hx-vals='{"status": "active"}' 
+                      hx-swap="none"
+                      style="background-color: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); font-weight: 600;">
+                アクティブへ復帰
+              </button>
+              <button class="btn-small" 
+                      hx-patch="/projects/{{.CurrentProject.ID}}/status" 
+                      hx-vals='{"status": "done"}' 
+                      hx-swap="none">
+                プロジェクト完了
+              </button>
+            {{else}}
+              <button class="btn-small" 
+                      hx-patch="/projects/{{.CurrentProject.ID}}/status" 
+                      hx-vals='{"status": "someday"}' 
+                      hx-swap="none">
+                保留(Someday)へ
+              </button>
+              <button class="btn-small" 
+                      hx-patch="/projects/{{.CurrentProject.ID}}/status" 
+                      hx-vals='{"status": "done"}' 
+                      hx-swap="none">
+                プロジェクト完了
+              </button>
+            {{end}}
+            <button class="icon-btn danger" 
+                    hx-delete="/projects/{{.CurrentProject.ID}}" 
+                    hx-confirm="このプロジェクトを削除しますか？（所属タスクは未分類になります）" 
+                    hx-swap="none" 
+                    title="プロジェクトを削除">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+              </svg>
+            </button>
+          </div>
         {{end}}
       {{end}}
     </div>
@@ -33,7 +77,7 @@
         すべて
       </span>
       {{range .Contexts}}
-        <span class="chip {{if $.ContextID}}{{if eq $.ContextID .ID}}active{{end}}{{end}}" 
+        <span class="chip {{if $.ContextID}}{{if eq (derefInt64 $.ContextID) .ID}}active{{end}}{{end}}" 
               hx-get="/partials/items?view=next&context_id={{.ID}}" 
               hx-target="#main-content-pane">
           {{.Name}} {{if gt .ItemCount 0}}({{.ItemCount}}){{end}}
@@ -42,97 +86,231 @@
     </div>
   {{end}}
 
+  <!-- Projects 管理ビューの場合のステータス Filter Chips -->
+  {{if eq .View "projects"}}
+    <div class="filter-chips-bar">
+      <span class="chip {{if or (eq .ProjectStatus "all") (eq .ProjectStatus "")}}active{{end}}" 
+            hx-get="/partials/items?view=projects&project_status=all" 
+            hx-target="#main-content-pane">
+        すべて ({{add .Counts.Projects (add .Counts.DoneProjects .Counts.SomedayProjects)}})
+      </span>
+      <span class="chip {{if eq .ProjectStatus "active"}}active{{end}}" 
+            hx-get="/partials/items?view=projects&project_status=active" 
+            hx-target="#main-content-pane">
+        進行中 ({{.Counts.Projects}})
+      </span>
+      <span class="chip {{if eq .ProjectStatus "someday"}}active{{end}}" 
+            hx-get="/partials/items?view=projects&project_status=someday" 
+            hx-target="#main-content-pane">
+        保留中 ({{.Counts.SomedayProjects}})
+      </span>
+      <span class="chip {{if eq .ProjectStatus "done"}}active{{end}}" 
+            hx-get="/partials/items?view=projects&project_status=done" 
+            hx-target="#main-content-pane">
+        完了済み ({{.Counts.DoneProjects}})
+      </span>
+    </div>
+  {{end}}
+
   <!-- Project ビューの場合のインラインタスク追加フォーム -->
   {{if and (eq .View "project") .CurrentProject}}
-    <form class="mini-add-form" style="margin-top: 12px; max-width: 500px;" 
-          hx-post="/items" 
-          hx-swap="none" 
-          onsubmit="setTimeout(() => { this.reset(); }, 30)">
-      <input type="hidden" name="project_id" value="{{.CurrentProject.ID}}">
-      <input type="hidden" name="status" value="next">
-      <input class="form-input" style="padding: 6px 12px;" name="title" placeholder="+ このプロジェクトのNext Actionを追加..." required autocomplete="off">
-      <button class="btn-small" style="padding: 6px 14px; white-space: nowrap;" type="submit">追加</button>
-    </form>
-  {{end}}
-</div>
-
-<!-- Items List -->
-<div class="items-list-container">
-  {{if eq (len .Items) 0}}
-    <div class="empty-state">
-      <svg class="empty-icon" viewBox="0 0 24 24">
-        <path d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-4.86 8.86l-3 3.87L9 13.14 6 17h12l-3.86-5.14z"/>
-      </svg>
-      <p style="font-size: 1rem; font-weight: 500;">アイテムはありません</p>
-      <p style="font-size: 0.85rem; margin-top: 4px;">上の検索バーまたはショートカット (Alt+N) で新しいタスクを追加してください。</p>
-    </div>
-  {{else}}
-    {{range .Items}}
-      <div class="item-card {{if eq .Status "done"}}done{{end}}" 
-           hx-get="/items/{{.ID}}/detail" 
-           hx-target="#item-detail-pane" 
-           hx-swap="innerHTML"
-           onclick="openDetailPane(); document.querySelectorAll('.item-card').forEach(c => c.classList.remove('selected')); this.classList.add('selected');">
-        
-        <!-- Checkbox -->
-        <input 
-          type="checkbox" 
-          class="item-checkbox" 
-          {{if eq .Status "done"}}checked{{end}} 
-          hx-patch="/items/{{.ID}}/status" 
-          hx-vals='{"status": "{{if eq .Status "done"}}next{{else}}done{{end}}"}' 
-          hx-swap="none" 
-          onclick="event.stopPropagation()"
-          title="{{if eq .Status "done"}}未完了に戻す{{else}}完了にする{{end}}"
-        >
-
-        <!-- Main Info -->
-        <div class="item-main-info">
-          <div class="item-title">{{.Title}}</div>
-          <div class="item-metadata">
-            <!-- 繰り返し設定バッジ -->
-            {{if ne .Recurrence "none"}}
-              <span class="meta-tag tag-repeat" title="繰り返しタスク: {{.RecurrenceLabel}}">
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-                  <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
-                </svg>
-                {{.RecurrenceLabel}}
-              </span>
-            {{end}}
-
-            <!-- 期限日バッジ -->
-            {{if .DueDate}}
-              <span class="meta-tag {{.DueDateClass}}" title="期限日">
-                📅 {{derefString .DueDate}}
-              </span>
-            {{end}}
-
-            <!-- プロジェクトバッジ -->
-            {{if .ProjectName}}
-              <span class="meta-tag tag-project" 
-                    hx-get="/partials/items?project_id={{derefInt64 .ProjectID}}" 
-                    hx-target="#main-content-pane" 
-                    onclick="event.stopPropagation()" 
-                    title="プロジェクト: {{.ProjectName}}">
-                📁 {{.ProjectName}}
-              </span>
-            {{end}}
-
-            <!-- コンテキストタグ -->
-            {{range .Contexts}}
-              <span class="meta-tag tag-context">{{.Name}}</span>
-            {{end}}
-
-            <!-- 添付クリップ数 -->
-            {{if gt .AttachCount 0}}
-              <span class="meta-tag tag-attach" title="添付あり ({{.AttachCount}}件)">
-                📎 {{.AttachCount}}
-              </span>
-            {{end}}
-          </div>
-        </div>
-      </div>
+    {{if ne .CurrentProject.Status "done"}}
+      <form class="mini-add-form" style="margin-top: 12px; max-width: 500px;" 
+            hx-post="/items" 
+            hx-swap="none" 
+            onsubmit="setTimeout(() => { this.reset(); }, 30)">
+        <input type="hidden" name="project_id" value="{{.CurrentProject.ID}}">
+        <input type="hidden" name="status" value="next">
+        <input class="form-input" style="padding: 6px 12px;" name="title" placeholder="+ このプロジェクトのNext Actionを追加..." required autocomplete="off">
+        <button class="btn-small" style="padding: 6px 14px; white-space: nowrap;" type="submit">追加</button>
+      </form>
     {{end}}
   {{end}}
 </div>
 
+{{if eq .View "projects"}}
+  <!-- Projects Overview & Archive List -->
+  <div class="items-list-container">
+    {{if eq (len .Projects) 0}}
+      <div class="empty-state">
+        <svg class="empty-icon" viewBox="0 0 24 24">
+          <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+        </svg>
+        <p style="font-size: 1rem; font-weight: 500;">該当するプロジェクトはありません</p>
+      </div>
+    {{else}}
+      {{range .Projects}}
+        <div class="item-card" style="justify-content: space-between; align-items: center; cursor: pointer;"
+             hx-get="/partials/items?project_id={{.ID}}" 
+             hx-target="#main-content-pane">
+          <div style="flex: 1; min-width: 0;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              {{if eq .Status "done"}}
+                <span class="badge" style="background-color: #d1e7dd; color: #0f5132; font-weight: 600;">完了</span>
+              {{else if eq .Status "someday"}}
+                <span class="badge" style="background-color: #fff3cd; color: #664d03; font-weight: 600;">保留</span>
+              {{else}}
+                <span class="badge" style="background-color: #e8f0fe; color: #1a73e8; font-weight: 600;">進行中</span>
+              {{end}}
+              <strong style="font-size: 1rem;">{{.Name}}</strong>
+              {{if .IsStalled}}
+                <span class="stalled-badge" style="font-size: 0.7rem; padding: 1px 6px;">Next Action 0件</span>
+              {{end}}
+            </div>
+            {{if .Description}}
+              <div style="font-size: 0.85rem; color: var(--md-sys-color-on-surface-variant); margin-top: 3px;">{{.Description}}</div>
+            {{end}}
+            <div style="font-size: 0.75rem; color: var(--md-sys-color-outline); margin-top: 4px;">
+              Next Action: <strong>{{.NextActionCount}}</strong> 件 / 合計: {{.TotalItemCount}} 件
+            </div>
+          </div>
+
+          <!-- Project Status Actions (Restore / Move) -->
+          <div style="display: flex; gap: 6px; align-items: center;" onclick="event.stopPropagation()">
+            {{if eq .Status "done"}}
+              <button class="btn-small" 
+                      hx-patch="/projects/{{.ID}}/status" 
+                      hx-vals='{"status": "active"}' 
+                      hx-swap="none"
+                      style="background-color: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); font-weight: 600;"
+                      title="プロジェクトを進行中に戻す">
+                アクティブに戻す
+              </button>
+              <button class="btn-small" 
+                      hx-patch="/projects/{{.ID}}/status" 
+                      hx-vals='{"status": "someday"}' 
+                      hx-swap="none">
+                保留へ
+              </button>
+            {{else if eq .Status "someday"}}
+              <button class="btn-small" 
+                      hx-patch="/projects/{{.ID}}/status" 
+                      hx-vals='{"status": "active"}' 
+                      hx-swap="none"
+                      style="background-color: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); font-weight: 600;">
+                アクティブにする
+              </button>
+              <button class="btn-small" 
+                      hx-patch="/projects/{{.ID}}/status" 
+                      hx-vals='{"status": "done"}' 
+                      hx-swap="none">
+                完了にする
+              </button>
+            {{else}}
+              <button class="btn-small" 
+                      hx-patch="/projects/{{.ID}}/status" 
+                      hx-vals='{"status": "someday"}' 
+                      hx-swap="none">
+                保留へ
+              </button>
+              <button class="btn-small" 
+                      hx-patch="/projects/{{.ID}}/status" 
+                      hx-vals='{"status": "done"}' 
+                      hx-swap="none">
+                完了にする
+              </button>
+            {{end}}
+            <button class="icon-btn danger" 
+                    hx-delete="/projects/{{.ID}}" 
+                    hx-confirm="このプロジェクトを削除しますか？" 
+                    hx-swap="none" 
+                    title="プロジェクトを削除">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      {{end}}
+    {{end}}
+  </div>
+{{else}}
+  <!-- Normal Items List -->
+  <div class="items-list-container">
+    {{if eq (len .Items) 0}}
+      <div class="empty-state">
+        <svg class="empty-icon" viewBox="0 0 24 24">
+          <path d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-4.86 8.86l-3 3.87L9 13.14 6 17h12l-3.86-5.14z"/>
+        </svg>
+        <p style="font-size: 1rem; font-weight: 500;">アイテムはありません</p>
+        <p style="font-size: 0.85rem; margin-top: 4px;">上の検索バーまたはショートカット (Alt+N) で新しいタスクを追加してください。</p>
+      </div>
+    {{else}}
+      {{range .Items}}
+        <div class="item-card {{if eq .Status "done"}}done{{end}}" 
+             hx-get="/items/{{.ID}}/detail" 
+             hx-target="#item-detail-pane" 
+             hx-swap="innerHTML"
+             onclick="openDetailPane(); document.querySelectorAll('.item-card').forEach(c => c.classList.remove('selected')); this.classList.add('selected');">
+          
+          <!-- Checkbox -->
+          <input 
+            type="checkbox" 
+            class="item-checkbox" 
+            {{if eq .Status "done"}}checked{{end}} 
+            hx-patch="/items/{{.ID}}/status" 
+            hx-vals='{"status": "{{if eq .Status "done"}}next{{else}}done{{end}}"}' 
+            hx-swap="none" 
+            onclick="event.stopPropagation()"
+            title="{{if eq .Status "done"}}未完了に戻す{{else}}完了にする{{end}}"
+          >
+
+          <!-- Main Info -->
+          <div class="item-main-info">
+            <div class="item-title">{{.Title}}</div>
+            <div class="item-metadata">
+              <!-- 繰り返し設定バッジ -->
+              {{if ne .Recurrence "none"}}
+                <span class="meta-tag tag-repeat" title="繰り返しタスク: {{.RecurrenceLabel}}">
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                    <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
+                  </svg>
+                  <span>{{.RecurrenceLabel}}</span>
+                </span>
+              {{end}}
+
+              <!-- 期限日バッジ -->
+              {{if .DueDate}}
+                <span class="meta-tag {{.DueDateClass}}" title="期限日">
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                    <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/>
+                  </svg>
+                  <span>{{.FormattedDueDate}}</span>
+                </span>
+              {{end}}
+
+              <!-- プロジェクトバッジ -->
+              {{if .ProjectName}}
+                <span class="meta-tag tag-project" 
+                      hx-get="/partials/items?project_id={{derefInt64 .ProjectID}}" 
+                      hx-target="#main-content-pane" 
+                      onclick="event.stopPropagation()" 
+                      title="プロジェクト: {{.ProjectName}}">
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                    <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+                  </svg>
+                  <span>{{.ProjectName}}</span>
+                </span>
+              {{end}}
+
+              <!-- コンテキストタグ -->
+              {{range .Contexts}}
+                <span class="meta-tag tag-context">{{.Name}}</span>
+              {{end}}
+
+              <!-- 添付クリップ数 -->
+              {{if gt .AttachCount 0}}
+                <span class="meta-tag tag-attach" title="添付あり ({{.AttachCount}}件)">
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                    <path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/>
+                  </svg>
+                  <span>{{.AttachCount}}</span>
+                </span>
+              {{end}}
+            </div>
+          </div>
+        </div>
+      {{end}}
+    {{end}}
+  </div>
+{{end}}

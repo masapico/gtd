@@ -58,6 +58,8 @@ func setupTestServer(t *testing.T) (*Handler, http.Handler, func()) {
 	mux.HandleFunc("POST /items/{id}/paste-image", h.PasteImage)
 	mux.HandleFunc("GET /items/{id}/attachments", h.GetAttachments)
 	mux.HandleFunc("POST /projects", h.CreateProject)
+	mux.HandleFunc("PATCH /projects/{id}/status", h.UpdateProjectStatus)
+	mux.HandleFunc("DELETE /projects/{id}", h.DeleteProject)
 	mux.HandleFunc("GET /review/step/{step}", h.ReviewStep)
 	mux.HandleFunc("POST /review/projects/{id}/reviewed", h.MarkProjectReviewed)
 	mux.HandleFunc("POST /review/items/{id}/reviewed", h.MarkItemReviewed)
@@ -98,6 +100,14 @@ func TestQuickCaptureAndItemList(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "Submit expense report") {
 		t.Errorf("expected item to be in inbox view")
+	}
+
+	// 3. Fetch with context_id filter (simulates clicking sidebar context or chip)
+	req = httptest.NewRequest("GET", "/partials/items?view=next&context_id=1", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for context filter, got %d", rec.Code)
 	}
 }
 
@@ -141,6 +151,9 @@ func TestRecurringTaskLifecycle(t *testing.T) {
 	}
 	if !strings.Contains(body, "毎月") {
 		t.Errorf("expected recurrence badge '毎月' in next actions view")
+	}
+	if strings.Contains(body, "T00:00:00Z") {
+		t.Errorf("expected due date not to contain T00:00:00Z, got raw ISO timestamp")
 	}
 }
 
@@ -258,5 +271,74 @@ func TestWeeklyReviewSteps(t *testing.T) {
 	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "Step 3: Get Creative") {
 		t.Errorf("Step 3 render failed: %d", rec.Code)
+	}
+}
+
+func TestProjectStatusTransitionsAndRestore(t *testing.T) {
+	h, mux, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// 1. Create a project
+	p := &model.Project{
+		Name:        "Q4 Financial Audit",
+		Description: "Internal review",
+	}
+	pID, err := db.CreateProject(h.DB, p)
+	if err != nil {
+		t.Fatalf("CreateProject failed: %v", err)
+	}
+
+	// 2. Mark project as done
+	form := url.Values{}
+	form.Set("status", "done")
+	req := httptest.NewRequest("PATCH", fmt.Sprintf("/projects/%d/status", pID), strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Mark done failed: %d", rec.Code)
+	}
+
+	// 3. View project detail: should show '完了済み' and 'アクティブに戻す' button
+	req = httptest.NewRequest("GET", fmt.Sprintf("/partials/items?project_id=%d", pID), nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("View project failed: %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "完了済み") || !strings.Contains(body, "アクティブに戻す") {
+		t.Errorf("expected restore button in completed project view, got: %s", body)
+	}
+
+	// 4. View projects overview list: should be visible in 'done' filter
+	req = httptest.NewRequest("GET", "/partials/items?view=projects&project_status=done", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("View projects overview failed: %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "Q4 Financial Audit") {
+		t.Errorf("expected completed project in projects overview")
+	}
+
+	// 5. Restore project to active
+	form = url.Values{}
+	form.Set("status", "active")
+	req = httptest.NewRequest("PATCH", fmt.Sprintf("/projects/%d/status", pID), strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Restore failed: %d", rec.Code)
+	}
+
+	// Verify project status is active again
+	restored, err := db.GetProjectByID(h.DB, pID)
+	if err != nil {
+		t.Fatalf("GetProjectByID failed: %v", err)
+	}
+	if restored.Status != "active" {
+		t.Errorf("expected status 'active', got %s", restored.Status)
 	}
 }

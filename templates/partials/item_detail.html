@@ -81,7 +81,7 @@
           <option value="">（プロジェクト未設定）</option>
           {{range .AllProjects}}
             <option value="{{.ID}}" {{if $.Item.ProjectID}}{{if eq (derefInt64 $.Item.ProjectID) .ID}}selected{{end}}{{end}}>
-              📁 {{.Name}}
+              {{.Name}}
             </option>
           {{end}}
         </select>

@@ -109,8 +109,10 @@ func GetSidebarCounts(db *sql.DB) (model.SidebarCounts, error) {
 		}
 	}
 
-	// プロジェクト総数（active）
+	// プロジェクト総数（active, done, someday）
 	_ = db.QueryRow(`SELECT COUNT(*) FROM projects WHERE status = 'active'`).Scan(&counts.Projects)
+	_ = db.QueryRow(`SELECT COUNT(*) FROM projects WHERE status = 'done'`).Scan(&counts.DoneProjects)
+	_ = db.QueryRow(`SELECT COUNT(*) FROM projects WHERE status = 'someday'`).Scan(&counts.SomedayProjects)
 
 	// 止まっているプロジェクト（Next Actionが0件のアクティブプロジェクト）
 	_ = db.QueryRow(`
@@ -210,7 +212,8 @@ func GetItems(db *sql.DB, filter model.ItemFilter) ([]model.Item, error) {
 			it.ProjectID = &pID.Int64
 		}
 		if dDate.Valid && dDate.String != "" {
-			it.DueDate = &dDate.String
+			cleanDate := strings.Split(dDate.String, "T")[0]
+			it.DueDate = &cleanDate
 		}
 		if lRev.Valid {
 			it.LastReviewedAt = &lRev.Time
@@ -275,7 +278,8 @@ func GetItemByID(db *sql.DB, id int64) (*model.Item, error) {
 		it.ProjectID = &pID.Int64
 	}
 	if dDate.Valid && dDate.String != "" {
-		it.DueDate = &dDate.String
+		cleanDate := strings.Split(dDate.String, "T")[0]
+		it.DueDate = &cleanDate
 	}
 	if lRev.Valid {
 		it.LastReviewedAt = &lRev.Time
@@ -749,8 +753,9 @@ func GetStaleItemsForReview(db *sql.DB) ([]model.Item, error) {
 		if pID.Valid {
 			it.ProjectID = &pID.Int64
 		}
-		if dDate.Valid {
-			it.DueDate = &dDate.String
+		if dDate.Valid && dDate.String != "" {
+			cleanDate := strings.Split(dDate.String, "T")[0]
+			it.DueDate = &cleanDate
 		}
 		if lRev.Valid {
 			it.LastReviewedAt = &lRev.Time

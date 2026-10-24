@@ -61,6 +61,9 @@ func (h *Handler) Render(w http.ResponseWriter, name string, data interface{}) {
 // TemplateFuncs はテンプレート内で利用できるユーティリティ関数群です
 func TemplateFuncs() template.FuncMap {
 	return template.FuncMap{
+		"add": func(a, b int) int {
+			return a + b
+		},
 		"dict": func(values ...interface{}) (map[string]interface{}, error) {
 			if len(values)%2 != 0 {
 				return nil, fmt.Errorf("invalid dict call")
@@ -89,7 +92,14 @@ func TemplateFuncs() template.FuncMap {
 			if s == nil || *s == "" {
 				return ""
 			}
-			return *s
+			val := *s
+			if idx := strings.Index(val, "T"); idx != -1 {
+				return val[:idx]
+			}
+			if len(val) > 10 {
+				return val[:10]
+			}
+			return val
 		},
 		"derefString": func(s *string) string {
 			if s == nil {
