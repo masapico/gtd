@@ -1,0 +1,138 @@
+<div class="content-header">
+  <div class="content-title-row">
+    <div>
+      <h1 class="content-title">{{.Title}}</h1>
+      <p class="content-description">{{.Description}}</p>
+    </div>
+    <div>
+      {{if eq .View "project"}}
+        {{if .CurrentProject}}
+          <button class="btn-small" 
+                  hx-patch="/projects/{{.CurrentProject.ID}}/status" 
+                  hx-vals='{"status": "{{if eq .CurrentProject.Status "active"}}someday{{else}}active{{end}}"}' 
+                  hx-swap="none">
+            {{if eq .CurrentProject.Status "active"}}保留(Someday)へ{{else}}アクティブへ復帰{{end}}
+          </button>
+          <button class="btn-small" 
+                  hx-patch="/projects/{{.CurrentProject.ID}}/status" 
+                  hx-vals='{"status": "done"}' 
+                  hx-swap="none">
+            プロジェクト完了
+          </button>
+        {{end}}
+      {{end}}
+    </div>
+  </div>
+
+  <!-- Next Actions の場合の Context Filter Chips -->
+  {{if eq .View "next"}}
+    <div class="filter-chips-bar">
+      <span class="chip {{if not .ContextID}}active{{end}}" 
+            hx-get="/partials/items?view=next" 
+            hx-target="#main-content-pane">
+        すべて
+      </span>
+      {{range .Contexts}}
+        <span class="chip {{if $.ContextID}}{{if eq $.ContextID .ID}}active{{end}}{{end}}" 
+              hx-get="/partials/items?view=next&context_id={{.ID}}" 
+              hx-target="#main-content-pane">
+          {{.Name}} {{if gt .ItemCount 0}}({{.ItemCount}}){{end}}
+        </span>
+      {{end}}
+    </div>
+  {{end}}
+
+  <!-- Project ビューの場合のインラインタスク追加フォーム -->
+  {{if and (eq .View "project") .CurrentProject}}
+    <form class="mini-add-form" style="margin-top: 12px; max-width: 500px;" 
+          hx-post="/items" 
+          hx-swap="none" 
+          onsubmit="setTimeout(() => { this.reset(); }, 30)">
+      <input type="hidden" name="project_id" value="{{.CurrentProject.ID}}">
+      <input type="hidden" name="status" value="next">
+      <input class="form-input" style="padding: 6px 12px;" name="title" placeholder="+ このプロジェクトのNext Actionを追加..." required autocomplete="off">
+      <button class="btn-small" style="padding: 6px 14px; white-space: nowrap;" type="submit">追加</button>
+    </form>
+  {{end}}
+</div>
+
+<!-- Items List -->
+<div class="items-list-container">
+  {{if eq (len .Items) 0}}
+    <div class="empty-state">
+      <svg class="empty-icon" viewBox="0 0 24 24">
+        <path d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-4.86 8.86l-3 3.87L9 13.14 6 17h12l-3.86-5.14z"/>
+      </svg>
+      <p style="font-size: 1rem; font-weight: 500;">アイテムはありません</p>
+      <p style="font-size: 0.85rem; margin-top: 4px;">上の検索バーまたはショートカット (Alt+N) で新しいタスクを追加してください。</p>
+    </div>
+  {{else}}
+    {{range .Items}}
+      <div class="item-card {{if eq .Status "done"}}done{{end}}" 
+           hx-get="/items/{{.ID}}/detail" 
+           hx-target="#item-detail-pane" 
+           hx-swap="innerHTML"
+           onclick="openDetailPane(); document.querySelectorAll('.item-card').forEach(c => c.classList.remove('selected')); this.classList.add('selected');">
+        
+        <!-- Checkbox -->
+        <input 
+          type="checkbox" 
+          class="item-checkbox" 
+          {{if eq .Status "done"}}checked{{end}} 
+          hx-patch="/items/{{.ID}}/status" 
+          hx-vals='{"status": "{{if eq .Status "done"}}next{{else}}done{{end}}"}' 
+          hx-swap="none" 
+          onclick="event.stopPropagation()"
+          title="{{if eq .Status "done"}}未完了に戻す{{else}}完了にする{{end}}"
+        >
+
+        <!-- Main Info -->
+        <div class="item-main-info">
+          <div class="item-title">{{.Title}}</div>
+          <div class="item-metadata">
+            <!-- 繰り返し設定バッジ -->
+            {{if ne .Recurrence "none"}}
+              <span class="meta-tag tag-repeat" title="繰り返しタスク: {{.RecurrenceLabel}}">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                  <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
+                </svg>
+                {{.RecurrenceLabel}}
+              </span>
+            {{end}}
+
+            <!-- 期限日バッジ -->
+            {{if .DueDate}}
+              <span class="meta-tag {{.DueDateClass}}" title="期限日">
+                📅 {{derefString .DueDate}}
+              </span>
+            {{end}}
+
+            <!-- プロジェクトバッジ -->
+            {{if .ProjectName}}
+              <span class="meta-tag tag-project" 
+                    hx-get="/partials/items?project_id={{derefInt64 .ProjectID}}" 
+                    hx-target="#main-content-pane" 
+                    onclick="event.stopPropagation()" 
+                    title="プロジェクト: {{.ProjectName}}">
+                📁 {{.ProjectName}}
+              </span>
+            {{end}}
+
+            <!-- コンテキストタグ -->
+            {{range .Contexts}}
+              <span class="meta-tag tag-context">{{.Name}}</span>
+            {{end}}
+
+            <!-- 添付クリップ数 -->
+            {{if gt .AttachCount 0}}
+              <span class="meta-tag tag-attach" title="添付あり ({{.AttachCount}}件)">
+                📎 {{.AttachCount}}
+              </span>
+            {{end}}
+          </div>
+        </div>
+      </div>
+    {{end}}
+  {{end}}
+</div>
+

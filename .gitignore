@@ -7,6 +7,11 @@
 *.dll
 *.so
 *.dylib
+gtd
+
+# Application data
+data/
+
 
 # Test binary, built with `go test -c`
 *.test

@@ -1,0 +1,138 @@
+<div id="item-detail-content" data-item-id="{{.Item.ID}}">
+  <!-- Detail Header -->
+  <div class="detail-header">
+    <div style="font-size: 0.85rem; font-weight: 600; color: var(--md-sys-color-on-surface-variant);">
+      アイテム詳細
+    </div>
+    <div class="detail-header-actions">
+      <!-- Delete Button -->
+      <button class="icon-btn danger" 
+              hx-delete="/items/{{.Item.ID}}" 
+              hx-confirm="このアイテムを完全に削除しますか？" 
+              hx-swap="none" 
+              onclick="closeDetailPane()" 
+              title="削除">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+          <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+        </svg>
+      </button>
+
+      <!-- Close Button -->
+      <button class="icon-btn" onclick="closeDetailPane()" title="閉じる (Esc)">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+          <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="detail-body">
+    <!-- Status Selector -->
+    <div class="form-group">
+      <label class="form-label">GTD ステータス</label>
+      <div class="status-selector">
+        <button type="button" class="status-btn {{if eq .Item.Status "inbox"}}active{{end}}" 
+                hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "inbox"}' hx-swap="none"
+                hx-get="/items/{{.Item.ID}}/detail" hx-target="#item-detail-pane">
+          Inbox
+        </button>
+        <button type="button" class="status-btn {{if eq .Item.Status "next"}}active{{end}}" 
+                hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "next"}' hx-swap="none"
+                hx-get="/items/{{.Item.ID}}/detail" hx-target="#item-detail-pane">
+          Next Action
+        </button>
+        <button type="button" class="status-btn {{if eq .Item.Status "waiting"}}active{{end}}" 
+                hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "waiting"}' hx-swap="none"
+                hx-get="/items/{{.Item.ID}}/detail" hx-target="#item-detail-pane">
+          Waiting For
+        </button>
+        <button type="button" class="status-btn {{if eq .Item.Status "someday"}}active{{end}}" 
+                hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "someday"}' hx-swap="none"
+                hx-get="/items/{{.Item.ID}}/detail" hx-target="#item-detail-pane">
+          Someday
+        </button>
+        <button type="button" class="status-btn {{if eq .Item.Status "reference"}}active{{end}}" 
+                hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "reference"}' hx-swap="none"
+                hx-get="/items/{{.Item.ID}}/detail" hx-target="#item-detail-pane">
+          Reference
+        </button>
+        <button type="button" class="status-btn {{if eq .Item.Status "done"}}active{{end}}" 
+                hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "done"}' hx-swap="none"
+                hx-get="/items/{{.Item.ID}}/detail" hx-target="#item-detail-pane">
+          Done
+        </button>
+      </div>
+    </div>
+
+    <!-- Auto-saving Item Detail Form -->
+    <form hx-put="/items/{{.Item.ID}}" hx-trigger="change, input delay:500ms" hx-swap="none">
+      <input type="hidden" name="status" value="{{.Item.Status}}">
+
+      <!-- Title -->
+      <div class="form-group">
+        <label class="form-label" for="detail-title">タイトル</label>
+        <input id="detail-title" name="title" class="form-input" type="text" value="{{.Item.Title}}" required autocomplete="off">
+      </div>
+
+      <!-- Project -->
+      <div class="form-group">
+        <label class="form-label" for="detail-project">プロジェクト</label>
+        <select id="detail-project" name="project_id" class="form-select">
+          <option value="">（プロジェクト未設定）</option>
+          {{range .AllProjects}}
+            <option value="{{.ID}}" {{if $.Item.ProjectID}}{{if eq (derefInt64 $.Item.ProjectID) .ID}}selected{{end}}{{end}}>
+              📁 {{.Name}}
+            </option>
+          {{end}}
+        </select>
+      </div>
+
+      <!-- Due Date & Recurrence -->
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="detail-due">期日</label>
+          <input id="detail-due" name="due_date" class="form-input" type="date" value="{{formatShortDate .Item.DueDate}}">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="detail-recurrence">繰り返し（業務リピート）</label>
+          <select id="detail-recurrence" name="recurrence" class="form-select">
+            <option value="none" {{if eq .Item.Recurrence "none"}}selected{{end}}>なし</option>
+            <option value="daily" {{if eq .Item.Recurrence "daily"}}selected{{end}}>毎日</option>
+            <option value="weekdays" {{if eq .Item.Recurrence "weekdays"}}selected{{end}}>平日 (月〜金)</option>
+            <option value="weekly" {{if eq .Item.Recurrence "weekly"}}selected{{end}}>毎週</option>
+            <option value="monthly" {{if eq .Item.Recurrence "monthly"}}selected{{end}}>毎月</option>
+            <option value="yearly" {{if eq .Item.Recurrence "yearly"}}selected{{end}}>毎年</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Body / Note -->
+      <div class="form-group">
+        <label class="form-label" for="detail-body">詳細メモ・手順</label>
+        <textarea id="detail-body" name="body" class="form-textarea" placeholder="業務手順、関連リンク、打ち合わせメモなど...">{{.Item.Body}}</textarea>
+      </div>
+    </form>
+
+    <!-- Context Tags Selector -->
+    <div class="form-group">
+      <label class="form-label">Context タグ</label>
+      <div class="context-tags-wrapper">
+        {{range .AllContexts}}
+          <button type="button" 
+                  class="context-tag-btn {{if $.Item.HasContext .ID}}active{{end}}" 
+                  hx-post="/items/{{$.Item.ID}}/contexts/{{.ID}}/toggle" 
+                  hx-target="#item-detail-pane"
+                  title="クリックでタグ付け切り替え">
+            {{.Name}}
+          </button>
+        {{end}}
+      </div>
+    </div>
+
+    <!-- Attachments Container -->
+    <div id="attachments-container" class="attachments-section">
+      {{template "attachments.html" dict "ItemID" .Item.ID "Attachments" .Item.Attachments}}
+    </div>
+  </div>
+</div>
+

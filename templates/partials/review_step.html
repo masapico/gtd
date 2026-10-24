@@ -1,0 +1,249 @@
+<div class="review-container">
+  <!-- Stepper Tabs -->
+  <div class="review-stepper">
+    <a class="step-tab {{if eq .Step 1}}active{{end}}" hx-get="/review/step/1" hx-target="#main-content-pane">
+      <span>1. Get Clear</span>
+      <span class="badge {{if gt .Counts.Inbox 0}}badge-alert{{end}}">{{.Counts.Inbox}}</span>
+    </a>
+    <a class="step-tab {{if eq .Step 2}}active{{end}}" hx-get="/review/step/2" hx-target="#main-content-pane">
+      <span>2. Get Current</span>
+      {{if gt .Counts.StalledProjects 0}}
+        <span class="badge badge-alert">警告 {{.Counts.StalledProjects}}</span>
+      {{end}}
+    </a>
+    <a class="step-tab {{if eq .Step 3}}active{{end}}" hx-get="/review/step/3" hx-target="#main-content-pane">
+      <span>3. Get Creative</span>
+    </a>
+  </div>
+
+  <!-- STEP 1: Get Clear -->
+  {{if eq .Step 1}}
+    <div style="margin-bottom: 20px;">
+      <h2 style="font-size: 1.3rem; font-weight: 700;">Step 1: Get Clear（Inboxを空にする）</h2>
+      <p style="font-size: 0.9rem; color: var(--md-sys-color-on-surface-variant); margin-top: 4px;">
+        Inboxに残っている未整理アイテムを1つずつ適切な場所へ振り分けます。頭の中を空にして、すべてゼロにしましょう。
+      </p>
+    </div>
+
+    {{if eq (len .InboxItems) 0}}
+      <div class="review-card" style="text-align: center; padding: 40px 20px; background-color: #f0fdf4; border-color: #bbf7d0;">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="#16a34a" style="margin-bottom: 12px;">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+        </svg>
+        <h3 style="color: #166534; font-size: 1.2rem; font-weight: 700;">Inbox Zero 達成！</h3>
+        <p style="color: #15803d; font-size: 0.9rem; margin-top: 6px;">未整理のアイテムはありません。次のステップへ進みましょう。</p>
+        <div style="margin-top: 20px;">
+          <button class="btn-small" style="padding: 10px 24px; font-size: 0.95rem; background-color: var(--md-sys-color-primary); color: #fff; font-weight: 600;" 
+                  hx-get="/review/step/2" 
+                  hx-target="#main-content-pane">
+            Step 2: プロジェクトの点検へ進む →
+          </button>
+        </div>
+      </div>
+    {{else}}
+      <div style="font-size: 0.85rem; color: var(--md-sys-color-outline); margin-bottom: 12px;">
+        残り <strong>{{len .InboxItems}}</strong> 件
+      </div>
+
+      {{range .InboxItems}}
+        <div class="review-card">
+          <div style="font-size: 1.05rem; font-weight: 600; margin-bottom: 6px;">{{.Title}}</div>
+          {{if .Body}}
+            <div style="font-size: 0.85rem; color: var(--md-sys-color-on-surface-variant); background: var(--md-sys-color-surface-container); padding: 8px 12px; border-radius: var(--md-shape-sm); margin-bottom: 12px; white-space: pre-wrap;">{{.Body}}</div>
+          {{end}}
+
+          <!-- Triage Actions -->
+          <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+            <button class="btn-small" 
+                    hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "next"}' hx-swap="none" 
+                    hx-get="/review/step/1" hx-target="#main-content-pane" 
+                    style="background-color: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); font-weight: 600;">
+              Next Action (今やる)
+            </button>
+            <button class="btn-small" 
+                    hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "waiting"}' hx-swap="none" 
+                    hx-get="/review/step/1" hx-target="#main-content-pane">
+              Waiting (連絡待ち)
+            </button>
+            <button class="btn-small" 
+                    hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "someday"}' hx-swap="none" 
+                    hx-get="/review/step/1" hx-target="#main-content-pane">
+              Someday (いつか)
+            </button>
+            <button class="btn-small" 
+                    hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "reference"}' hx-swap="none" 
+                    hx-get="/review/step/1" hx-target="#main-content-pane">
+              Reference (資料メモ)
+            </button>
+            <button class="btn-small" 
+                    hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "done"}' hx-swap="none" 
+                    hx-get="/review/step/1" hx-target="#main-content-pane">
+              Done (完了)
+            </button>
+            <button class="btn-small" 
+                    hx-delete="/items/{{.ID}}" hx-swap="none" 
+                    hx-get="/review/step/1" hx-target="#main-content-pane" 
+                    style="color: var(--md-sys-color-error);">
+              削除
+            </button>
+          </div>
+        </div>
+      {{end}}
+    {{end}}
+  {{end}}
+
+  <!-- STEP 2: Get Current -->
+  {{if eq .Step 2}}
+    <div style="margin-bottom: 20px;">
+      <h2 style="font-size: 1.3rem; font-weight: 700;">Step 2: Get Current（止まっているプロジェクトの点検）</h2>
+      <p style="font-size: 0.9rem; color: var(--md-sys-color-on-surface-variant); margin-top: 4px;">
+        すべてのアクティブなプロジェクトに、次に取るべき具体的な行動（Next Action）が設定されているか点検します。0件のプロジェクトはここでNext Actionを追加するか保留に回します。
+      </p>
+    </div>
+
+    {{range .ActiveProjects}}
+      <div class="review-card {{if .IsStalled}}stalled{{end}}">
+        {{if .IsStalled}}
+          <div class="stalled-badge">⚠️ 止まっているプロジェクト (Next Actionが0件)</div>
+        {{end}}
+
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
+          <div>
+            <h3 style="font-size: 1.1rem; font-weight: 600;">📁 {{.Name}}</h3>
+            {{if .Description}}
+              <p style="font-size: 0.85rem; color: var(--md-sys-color-on-surface-variant); margin-top: 2px;">{{.Description}}</p>
+            {{end}}
+            <div style="font-size: 0.78rem; color: var(--md-sys-color-outline); margin-top: 4px;">
+              Next Action: <strong>{{.NextActionCount}}</strong> 件 / 合計: {{.TotalItemCount}} 件
+              {{if .LastReviewedAt}} | 前回点検: {{formatDate .LastReviewedAt}}{{end}}
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 6px; flex-shrink: 0;">
+            <button class="btn-small" 
+                    hx-post="/review/projects/{{.ID}}/reviewed" hx-swap="none" 
+                    hx-get="/review/step/2" hx-target="#main-content-pane" 
+                    title="点検完了として日時を更新">
+              点検完了 ✓
+            </button>
+            <button class="btn-small" 
+                    hx-patch="/projects/{{.ID}}/status" hx-vals='{"status": "someday"}' hx-swap="none" 
+                    hx-get="/review/step/2" hx-target="#main-content-pane">
+              Somedayへ
+            </button>
+            <button class="btn-small" 
+                    hx-patch="/projects/{{.ID}}/status" hx-vals='{"status": "done"}' hx-swap="none" 
+                    hx-get="/review/step/2" hx-target="#main-content-pane">
+              プロジェクト完了
+            </button>
+          </div>
+        </div>
+
+        <!-- Inline Add Next Action Form -->
+        <form style="display: flex; gap: 6px; margin-top: 12px;" 
+              hx-post="/items" hx-swap="none" 
+              hx-get="/review/step/2" hx-target="#main-content-pane"
+              onsubmit="setTimeout(() => { this.reset(); }, 30)">
+          <input type="hidden" name="project_id" value="{{.ID}}">
+          <input type="hidden" name="status" value="next">
+          <input class="form-input" style="padding: 6px 10px; font-size: 0.85rem;" name="title" placeholder="+ このプロジェクトのNext Actionを追加して前進させる..." required autocomplete="off">
+          <button class="btn-small" type="submit" style="white-space: nowrap; font-weight: 600;">追加</button>
+        </form>
+      </div>
+    {{end}}
+
+    <div style="text-align: right; margin-top: 24px;">
+      <button class="btn-small" style="padding: 10px 24px; font-size: 0.95rem; background-color: var(--md-sys-color-primary); color: #fff; font-weight: 600;" 
+              hx-get="/review/step/3" 
+              hx-target="#main-content-pane">
+        Step 3: 保留項目の棚卸しへ進む →
+      </button>
+    </div>
+  {{end}}
+
+  <!-- STEP 3: Get Creative -->
+  {{if eq .Step 3}}
+    <div style="margin-bottom: 20px;">
+      <h2 style="font-size: 1.3rem; font-weight: 700;">Step 3: Get Creative（Waiting / Somedayの棚卸し）</h2>
+      <p style="font-size: 0.9rem; color: var(--md-sys-color-on-surface-variant); margin-top: 4px;">
+        1週間以上見直されていない「連絡待ち」や「保留・アイデア」アイテムを確認し、今週やるべきものはNext Actionへ昇格させます。
+      </p>
+    </div>
+
+    {{if eq (len .StaleItems) 0}}
+      <div class="review-card" style="text-align: center; padding: 40px 20px;">
+        <svg viewBox="0 0 24 24" width="48" height="48" fill="#16a34a" style="margin-bottom: 12px;">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+        </svg>
+        <h3 style="font-size: 1.2rem; font-weight: 700;">棚卸しが必要なアイテムはありません！</h3>
+        <p style="font-size: 0.9rem; color: var(--md-sys-color-on-surface-variant); margin-top: 6px;">Waiting / Someday はすべて最新状態に保たれています。</p>
+        <div style="margin-top: 24px;">
+          <button class="btn-small" style="padding: 12px 28px; font-size: 1rem; background-color: var(--md-sys-color-primary); color: #fff; font-weight: 600;" 
+                  hx-get="/partials/items?view=next" 
+                  hx-target="#main-content-pane">
+            週次レビュー完了！ Next Actions を開く ✓
+          </button>
+        </div>
+      </div>
+    {{else}}
+      <div style="font-size: 0.85rem; color: var(--md-sys-color-outline); margin-bottom: 12px;">
+        棚卸し対象: <strong>{{len .StaleItems}}</strong> 件
+      </div>
+
+      {{range .StaleItems}}
+        <div class="review-card">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
+            <div>
+              <span class="meta-tag {{if eq .Status "waiting"}}tag-repeat{{else}}tag-project{{end}}" style="margin-bottom: 4px;">
+                {{.StatusLabel}}
+              </span>
+              <div style="font-size: 1.05rem; font-weight: 600;">{{.Title}}</div>
+              {{if .ProjectName}}
+                <div style="font-size: 0.8rem; color: var(--md-sys-color-outline); margin-top: 2px;">📁 {{.ProjectName}}</div>
+              {{end}}
+              {{if .Body}}
+                <div style="font-size: 0.85rem; margin-top: 6px; color: var(--md-sys-color-on-surface-variant); white-space: pre-wrap;">{{.Body}}</div>
+              {{end}}
+            </div>
+
+            <!-- Triage Actions -->
+            <div style="display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap;">
+              <button class="btn-small" 
+                      hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "next"}' hx-swap="none" 
+                      hx-get="/review/step/3" hx-target="#main-content-pane" 
+                      style="background-color: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); font-weight: 600;">
+                今週やる (Next)
+              </button>
+              <button class="btn-small" 
+                      hx-post="/review/items/{{.ID}}/reviewed" hx-swap="none" 
+                      hx-get="/review/step/3" hx-target="#main-content-pane" 
+                      title="引き続き待機または保留として点検日を更新">
+                引き続き保留 ✓
+              </button>
+              <button class="btn-small" 
+                      hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "done"}' hx-swap="none" 
+                      hx-get="/review/step/3" hx-target="#main-content-pane">
+                完了
+              </button>
+              <button class="btn-small" 
+                      hx-delete="/items/{{.ID}}" hx-swap="none" 
+                      hx-get="/review/step/3" hx-target="#main-content-pane" 
+                      style="color: var(--md-sys-color-error);">
+                削除
+              </button>
+            </div>
+          </div>
+        </div>
+      {{end}}
+
+      <div style="text-align: right; margin-top: 24px;">
+        <button class="btn-small" style="padding: 12px 28px; font-size: 1rem; background-color: var(--md-sys-color-primary); color: #fff; font-weight: 600;" 
+                hx-get="/partials/items?view=next" 
+                hx-target="#main-content-pane">
+          週次レビュー完了！ Next Actions を開く ✓
+        </button>
+      </div>
+    {{end}}
+  {{end}}
+</div>
+

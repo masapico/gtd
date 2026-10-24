@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GTD - Personal Task & Info Manager</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/htmx.min.js"></script>
+  <script src="/static/app.js"></script>
+</head>
+<body hx-ext="morph">
+
+  <!-- Top App Bar & Quick Capture -->
+  <header class="app-topbar">
+    <button class="menu-toggle-btn" onclick="toggleSidebar()" title="メニュー切り替え" aria-label="Toggle menu">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+        <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
+      </svg>
+    </button>
+
+    <div class="brand-section">
+      <svg class="brand-icon" viewBox="0 0 24 24">
+        <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+      </svg>
+      <span>GTD</span>
+    </div>
+
+    <!-- Quick Capture Form -->
+    <form class="quick-capture-form" hx-post="/items" hx-swap="none" onsubmit="setTimeout(() => { document.getElementById('quick-capture-input').value = ''; }, 30);">
+      <div class="quick-capture-wrapper">
+        <svg class="quick-capture-icon" viewBox="0 0 24 24">
+          <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+        </svg>
+        <input 
+          id="quick-capture-input" 
+          name="title" 
+          class="quick-capture-input" 
+          type="text" 
+          placeholder="頭の中のタスク・メモをクイック投入... ( / または Alt+N )" 
+          autocomplete="off" 
+          required
+        >
+        <span class="shortcut-badge" title="ショートカットキー">Alt+N</span>
+      </div>
+    </form>
+  </header>
+
+  <!-- 3-Pane Body -->
+  <div class="app-body">
+    <!-- Left Pane: Navigation & Filters -->
+    <nav id="sidebar-pane" class="sidebar-pane" hx-get="/partials/sidebar" hx-trigger="itemChanged from:body, projectChanged from:body" hx-swap="innerHTML">
+      {{template "sidebar.html" .Sidebar}}
+    </nav>
+
+    <!-- Center Pane: Main Content List or Review Wizard -->
+    <main id="main-content-pane" class="main-content-pane" hx-get="/partials/items?view={{.ItemList.View}}{{if .ItemList.CurrentProject}}&project_id={{.ItemList.CurrentProject.ID}}{{end}}{{if .ItemList.CurrentContext}}&context_id={{.ItemList.CurrentContext.ID}}{{end}}" hx-trigger="itemChanged from:body, listRefresh from:body" hx-swap="innerHTML">
+      {{template "item_list.html" .ItemList}}
+    </main>
+
+    <!-- Right Pane: Side Sheet / Detail Inspector -->
+    <aside id="item-detail-pane" class="item-detail-pane closed">
+      <!-- Item detail dynamically loaded here via htmx -->
+    </aside>
+  </div>
+
+</body>
+</html>
+

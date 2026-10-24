@@ -1,0 +1,85 @@
+<div class="form-group">
+  <label class="form-label" style="display:flex; justify-content:space-between; align-items:center;">
+    <span>添付・関連リンク・スクショ ({{len .Attachments}})</span>
+  </label>
+
+  <!-- Attachments List -->
+  <div style="margin-top: 6px;">
+    {{range .Attachments}}
+      <div class="attachment-item">
+        <div class="attachment-info">
+          {{if eq .Type "image"}}
+            <a href="/data/images/{{.Target}}" target="_blank" rel="noopener">
+              <img src="/data/images/{{.Target}}" class="thumb-img" alt="スクショ" title="クリックで画像を開く">
+            </a>
+            <div>
+              <div style="font-weight: 500;">{{.CleanTargetName}}</div>
+              <div style="font-size: 0.72rem; color: var(--md-sys-color-outline);">スクリーンショット</div>
+            </div>
+          {{else if eq .Type "url"}}
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="color: #0d6efd; flex-shrink: 0;">
+              <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/>
+            </svg>
+            <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+              <div style="font-weight: 500;">{{.CleanTargetName}}</div>
+              <div style="font-size: 0.72rem; color: var(--md-sys-color-outline); overflow:hidden; text-overflow:ellipsis;">{{.Target}}</div>
+            </div>
+          {{else}}
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="color: #6f42c1; flex-shrink: 0;">
+              <path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/>
+            </svg>
+            <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+              <div style="font-weight: 500;">{{.CleanTargetName}}</div>
+              <div style="font-size: 0.72rem; color: var(--md-sys-color-outline); overflow:hidden; text-overflow:ellipsis;">{{.Target}}</div>
+            </div>
+          {{end}}
+        </div>
+
+        <div class="attachment-actions">
+          {{if eq .Type "url"}}
+            <a href="{{.Target}}" target="_blank" rel="noopener" class="btn-small" title="ブラウザで開く">開く ↗</a>
+          {{else if eq .Type "path"}}
+            <button type="button" class="btn-small" hx-post="/attachments/{{.ID}}/open" hx-swap="none" title="OSアプリまたはエクスプローラーで開く">開く</button>
+            <button type="button" class="btn-small" onclick="copyToClipboard('{{.Target}}', this)" title="パスをクリップボードにコピー">コピー</button>
+          {{else if eq .Type "image"}}
+            <a href="/data/images/{{.Target}}" target="_blank" rel="noopener" class="btn-small" title="拡大表示">拡大 ↗</a>
+          {{end}}
+
+          <!-- Delete attachment -->
+          <button type="button" class="icon-btn danger" 
+                  hx-delete="/attachments/{{.ID}}" 
+                  hx-swap="none"
+                  hx-get="/items/{{$.ItemID}}/attachments"
+                  hx-target="#attachments-container"
+                  title="添付を削除">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+              <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    {{end}}
+  </div>
+
+  <!-- Add Attachment Form -->
+  <form style="display: flex; flex-direction: column; gap: 6px; margin-top: 10px;" 
+        hx-post="/items/{{.ItemID}}/attachments" 
+        hx-target="#attachments-container" 
+        hx-swap="innerHTML"
+        onsubmit="setTimeout(() => { this.reset(); }, 30)">
+    <div style="display:flex; gap:6px;">
+      <input class="form-input" style="padding: 5px 8px; font-size: 0.8rem;" name="target" placeholder="URL または 社内ファイルパス (\\server\... や C:\...)" required autocomplete="off">
+      <input class="form-input" style="padding: 5px 8px; font-size: 0.8rem; max-width: 130px;" name="label" placeholder="表示名 (任意)" autocomplete="off">
+      <button class="btn-small" type="submit" style="padding: 5px 12px; white-space: nowrap;">追加</button>
+    </div>
+  </form>
+
+  <!-- Ctrl+V Paste Hint -->
+  <div class="paste-hint">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+      <path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/>
+    </svg>
+    <span><strong>Ctrl + V</strong> (または Cmd + V) でスクリーンショットを直接貼り付けできます</span>
+  </div>
+</div>
+
