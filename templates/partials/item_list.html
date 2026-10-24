@@ -1,9 +1,80 @@
 <div class="content-header">
   <div class="content-title-row">
-    <div>
-      <h1 class="content-title">{{.Title}}</h1>
-      <p class="content-description">{{.Description}}</p>
-    </div>
+    {{if and (eq .View "project") .CurrentProject}}
+      <!-- 通常表示（プロジェクト名と編集ボタン） -->
+      <div id="project-title-view" style="flex: 1; min-width: 0;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <h1 class="content-title" 
+              onclick="toggleProjectEdit(true)" 
+              style="cursor: pointer; margin: 0; display: inline-flex; align-items: center; gap: 6px;" 
+              title="クリックしてプロジェクト名を編集">
+            <span>{{.Title}}</span>
+          </h1>
+          <button type="button" 
+                  class="icon-btn edit-project-btn" 
+                  onclick="toggleProjectEdit(true)" 
+                  title="プロジェクト名を編集" 
+                  aria-label="プロジェクト名を編集"
+                  style="width: 28px; height: 28px;">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+              <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+            </svg>
+          </button>
+        </div>
+        {{if .Description}}
+          <p class="content-description" style="cursor: pointer;" onclick="toggleProjectEdit(true)" title="クリックして説明・ゴールを編集">{{.Description}}</p>
+        {{else}}
+          <p class="content-description" style="cursor: pointer; color: var(--md-sys-color-outline); font-style: italic;" onclick="toggleProjectEdit(true)" title="クリックして説明・ゴールを追加">+ 説明・ゴールを追加</p>
+        {{end}}
+      </div>
+
+      <!-- インライン編集フォーム -->
+      <form id="project-title-edit" 
+            style="display: none; flex: 1; min-width: 0; margin-right: 16px;"
+            hx-put="/projects/{{.CurrentProject.ID}}" 
+            hx-swap="none"
+            onsubmit="setTimeout(() => showToast('プロジェクトを更新しました'), 50)">
+        <input type="hidden" name="status" value="{{.CurrentProject.Status}}">
+        <div style="display: flex; flex-direction: column; gap: 6px; max-width: 520px;">
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <input class="form-input" 
+                   id="project-edit-name-input"
+                   name="name" 
+                   value="{{.CurrentProject.Name}}" 
+                   placeholder="プロジェクト名" 
+                   required 
+                   autocomplete="off"
+                   style="font-size: 1.15rem; font-weight: 700; padding: 6px 12px; flex: 1;">
+          </div>
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <input class="form-input" 
+                   id="project-edit-desc-input"
+                   name="description" 
+                   value="{{.CurrentProject.Description}}" 
+                   placeholder="説明・完了条件（任意）" 
+                   autocomplete="off"
+                   style="font-size: 0.85rem; padding: 5px 10px; flex: 1;">
+            <button class="btn-small" 
+                    type="submit" 
+                    style="background-color: var(--md-sys-color-primary); color: #fff; font-weight: 600; padding: 6px 14px;">
+              保存
+            </button>
+            <button class="btn-small" 
+                    type="button" 
+                    onclick="toggleProjectEdit(false)"
+                    style="padding: 6px 10px;">
+              キャンセル
+            </button>
+          </div>
+          <span style="font-size: 0.72rem; color: var(--md-sys-color-outline);">Enterで保存 / Escでキャンセル</span>
+        </div>
+      </form>
+    {{else}}
+      <div>
+        <h1 class="content-title">{{.Title}}</h1>
+        <p class="content-description">{{.Description}}</p>
+      </div>
+    {{end}}
     <div>
       {{if eq .View "project"}}
         {{if .CurrentProject}}
@@ -203,7 +274,8 @@
         <div class="item-card" style="justify-content: space-between; align-items: center; cursor: pointer;"
              hx-get="/partials/items?project_id={{.ID}}" 
              hx-target="#main-content-pane">
-          <div style="flex: 1; min-width: 0;">
+          <!-- 通常表示ブロック -->
+          <div id="project-card-view-{{.ID}}" style="flex: 1; min-width: 0;">
             <div style="display: flex; align-items: center; gap: 8px;">
               {{if eq .Status "done"}}
                 <span class="badge" style="background-color: #d1e7dd; color: #0f5132; font-weight: 600;">完了</span>
@@ -225,8 +297,53 @@
             </div>
           </div>
 
-          <!-- Project Status Actions (Restore / Move) -->
+          <!-- インライン編集ブロック (初期hidden) -->
+          <form id="project-card-edit-{{.ID}}" 
+                style="display: none; flex: 1; min-width: 0; margin-right: 12px;"
+                hx-put="/projects/{{.ID}}" 
+                hx-swap="none"
+                onclick="event.stopPropagation()"
+                onsubmit="setTimeout(() => showToast('プロジェクトを更新しました'), 50)">
+            <input type="hidden" name="status" value="{{.Status}}">
+            <div style="display: flex; flex-direction: column; gap: 6px; max-width: 450px;">
+              <input class="form-input" 
+                     id="project-list-edit-input-{{.ID}}"
+                     name="name" 
+                     value="{{.Name}}" 
+                     placeholder="プロジェクト名" 
+                     required 
+                     autocomplete="off"
+                     style="font-size: 0.95rem; font-weight: 600; padding: 4px 8px;">
+              <div style="display: flex; gap: 6px; align-items: center;">
+                <input class="form-input" 
+                       name="description" 
+                       value="{{.Description}}" 
+                       placeholder="説明（任意）" 
+                       autocomplete="off"
+                       style="font-size: 0.8rem; padding: 3px 6px; flex: 1;">
+                <button class="btn-small" 
+                        type="submit" 
+                        style="background-color: var(--md-sys-color-primary); color: #fff; font-weight: 600; padding: 4px 10px;">
+                  保存
+                </button>
+                <button class="btn-small" 
+                        type="button" 
+                        onclick="event.stopPropagation(); toggleProjectCardEdit({{.ID}}, false)">
+                  キャンセル
+                </button>
+              </div>
+            </div>
+          </form>
+
+          <!-- Project Status Actions (Edit / Restore / Move / Delete) -->
           <div style="display: flex; gap: 6px; align-items: center;" onclick="event.stopPropagation()">
+            <button class="icon-btn" 
+                    onclick="event.stopPropagation(); toggleProjectCardEdit({{.ID}}, true);" 
+                    title="プロジェクト名を編集">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+              </svg>
+            </button>
             {{if eq .Status "done"}}
               <button class="btn-small" 
                       hx-patch="/projects/{{.ID}}/status" 

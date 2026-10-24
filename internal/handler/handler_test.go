@@ -58,6 +58,7 @@ func setupTestServer(t *testing.T) (*Handler, http.Handler, func()) {
 	mux.HandleFunc("POST /items/{id}/paste-image", h.PasteImage)
 	mux.HandleFunc("GET /items/{id}/attachments", h.GetAttachments)
 	mux.HandleFunc("POST /projects", h.CreateProject)
+	mux.HandleFunc("PUT /projects/{id}", h.UpdateProject)
 	mux.HandleFunc("PATCH /projects/{id}/status", h.UpdateProjectStatus)
 	mux.HandleFunc("DELETE /projects/{id}", h.DeleteProject)
 	mux.HandleFunc("POST /contexts", h.CreateContext)
@@ -599,5 +600,108 @@ func TestRelativeDueDateRenderingInItemList(t *testing.T) {
 	}
 	if !strings.Contains(body, "due-overdue") {
 		t.Errorf("expected 'due-overdue' class in item list")
+	}
+}
+
+func TestUpdateProjectNameAndDescription(t *testing.T) {
+	h, mux, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// 1. プロジェクト作成
+	p := &model.Project{
+		Name:        "旧プロジェクト名",
+		Description: "プロジェクトの目的",
+		Status:      "someday",
+	}
+	pID, err := db.CreateProject(h.DB, p)
+	if err != nil {
+		t.Fatalf("CreateProject failed: %v", err)
+	}
+
+	// 2. PUT /projects/{id} で名前のみを変更（statusやdescriptionを省略）
+	form := url.Values{}
+	form.Set("name", "新プロジェクト名")
+	req := httptest.NewRequest("PUT", fmt.Sprintf("/projects/%d", pID), strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("UpdateProject failed: %d", rec.Code)
+	}
+
+	// HX-Trigger に projectChanged が含まれること
+	trigger := rec.Header().Get("HX-Trigger")
+	if !strings.Contains(trigger, "projectChanged") {
+		t.Errorf("expected 'projectChanged' in HX-Trigger, got: %s", trigger)
+	}
+
+	// DB確認: 名前が更新され、既存のstatus(someday)とdescriptionが維持されていること
+	updated, err := db.GetProjectByID(h.DB, pID)
+	if err != nil {
+		t.Fatalf("GetProjectByID failed: %v", err)
+	}
+	if updated.Name != "新プロジェクト名" {
+		t.Errorf("expected Name '新プロジェクト名', got '%s'", updated.Name)
+	}
+	if updated.Status != "someday" {
+		t.Errorf("expected Status 'someday' preserved, got '%s'", updated.Status)
+	}
+	if updated.Description != "プロジェクトの目的" {
+		t.Errorf("expected Description preserved, got '%s'", updated.Description)
+	}
+
+	// 3. PUT /projects/{id} で名前と説明の両方を変更
+	form = url.Values{}
+	form.Set("name", "最新プロジェクト名")
+	form.Set("description", "更新後のゴール説明")
+	req = httptest.NewRequest("PUT", fmt.Sprintf("/projects/%d", pID), strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("UpdateProject with desc failed: %d", rec.Code)
+	}
+
+	updated, _ = db.GetProjectByID(h.DB, pID)
+	if updated.Name != "最新プロジェクト名" || updated.Description != "更新後のゴール説明" {
+		t.Errorf("expected updated name & description, got: %+v", updated)
+	}
+
+	// 4. プロジェクト個別ビューの表示確認: 最新名、編集ボタン、インライン編集フォームが含まれていること
+	req = httptest.NewRequest("GET", fmt.Sprintf("/partials/items?project_id=%d", pID), nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("View project failed: %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "最新プロジェクト名") {
+		t.Errorf("expected '最新プロジェクト名' in view")
+	}
+	if !strings.Contains(body, "edit-project-btn") || !strings.Contains(body, "project-title-edit") {
+		t.Errorf("expected edit button and inline edit form in project header")
+	}
+
+	// 5. プロジェクト一覧ビューの表示確認: 一覧カード内にも編集ボタンが含まれていること
+	req = httptest.NewRequest("GET", "/partials/items?view=projects&project_status=all", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("View projects list failed: %d", rec.Code)
+	}
+	body = rec.Body.String()
+	if !strings.Contains(body, fmt.Sprintf("project-card-edit-%d", pID)) {
+		t.Errorf("expected project card inline edit in projects list")
+	}
+
+	// 6. 空の名前で更新しようとした場合に400エラーが返ること
+	form = url.Values{}
+	form.Set("name", "   ")
+	req = httptest.NewRequest("PUT", fmt.Sprintf("/projects/%d", pID), strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for empty project name, got: %d", rec.Code)
 	}
 }

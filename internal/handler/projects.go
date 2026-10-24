@@ -58,15 +58,26 @@ func (h *Handler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	status := r.FormValue("status")
+	existing, err := db.GetProjectByID(h.DB, id)
+	if err != nil {
+		http.Error(w, "Project not found", http.StatusNotFound)
+		return
+	}
+
+	status := strings.TrimSpace(r.FormValue("status"))
 	if status == "" {
-		status = "active"
+		status = existing.Status
+	}
+
+	desc := existing.Description
+	if r.Form.Has("description") {
+		desc = strings.TrimSpace(r.FormValue("description"))
 	}
 
 	p := &model.Project{
 		ID:          id,
 		Name:        name,
-		Description: strings.TrimSpace(r.FormValue("description")),
+		Description: desc,
 		Status:      status,
 	}
 

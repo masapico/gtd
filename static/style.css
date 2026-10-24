@@ -389,6 +389,22 @@ body {
   font-size: 1.3rem;
   font-weight: 700;
   color: var(--md-sys-color-on-surface);
+  transition: color 0.15s ease;
+}
+
+#project-title-view:hover .content-title {
+  color: var(--md-sys-color-primary);
+}
+
+.edit-project-btn {
+  opacity: 0.55;
+  transition: opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+#project-title-view:hover .edit-project-btn,
+.edit-project-btn:hover {
+  opacity: 1;
+  color: var(--md-sys-color-primary);
 }
 
 .content-description {

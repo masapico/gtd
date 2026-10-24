@@ -46,8 +46,25 @@ document.addEventListener('paste', async (e) => {
 
 // 2. キーボードショートカット
 document.addEventListener('keydown', (e) => {
-  // Esc: 詳細インスペクタを閉じる / サイドバーを閉じる
+  // Esc: プロジェクトインライン編集を閉じる / 詳細インスペクタを閉じる / サイドバーを閉じる
   if (e.key === 'Escape') {
+    const projectEditForm = document.getElementById('project-title-edit');
+    if (projectEditForm && projectEditForm.style.display !== 'none') {
+      e.preventDefault();
+      toggleProjectEdit(false);
+      return;
+    }
+    // プロジェクト一覧内のカード編集フォームも閉じる
+    const openCardEdits = document.querySelectorAll('form[id^="project-card-edit-"]');
+    for (const form of openCardEdits) {
+      if (form.style.display !== 'none') {
+        e.preventDefault();
+        const id = form.id.replace('project-card-edit-', '');
+        toggleProjectCardEdit(id, false);
+        return;
+      }
+    }
+
     closeDetailPane();
     const sidebar = document.getElementById('sidebar-pane');
     if (sidebar) sidebar.classList.remove('open');
@@ -155,4 +172,43 @@ function syncMainPaneUrl(e) {
 }
 document.addEventListener('htmx:afterRequest', syncMainPaneUrl);
 document.addEventListener('htmx:after:request', syncMainPaneUrl);
+
+// 8. プロジェクト名・詳細のインライン編集制御
+function toggleProjectEdit(show) {
+  const viewEl = document.getElementById('project-title-view');
+  const editEl = document.getElementById('project-title-edit');
+  if (!viewEl || !editEl) return;
+
+  if (show) {
+    viewEl.style.display = 'none';
+    editEl.style.display = 'block';
+    const input = document.getElementById('project-edit-name-input');
+    if (input) {
+      input.focus();
+      input.select();
+    }
+  } else {
+    viewEl.style.display = 'block';
+    editEl.style.display = 'none';
+  }
+}
+
+function toggleProjectCardEdit(id, show) {
+  const viewEl = document.getElementById('project-card-view-' + id);
+  const editEl = document.getElementById('project-card-edit-' + id);
+  if (!viewEl || !editEl) return;
+
+  if (show) {
+    viewEl.style.display = 'none';
+    editEl.style.display = 'block';
+    const input = document.getElementById('project-list-edit-input-' + id);
+    if (input) {
+      input.focus();
+      input.select();
+    }
+  } else {
+    viewEl.style.display = 'block';
+    editEl.style.display = 'none';
+  }
+}
 
