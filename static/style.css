@@ -1619,6 +1619,17 @@ body {
   background-color: var(--md-sys-color-surface-container-high);
 }
 
+.btn-reviewed {
+  background-color: #dcfce7 !important;
+  color: #166534 !important;
+  border-color: #86efac !important;
+  font-weight: 600 !important;
+}
+
+.btn-reviewed:hover {
+  background-color: #bbf7d0 !important;
+}
+
 .paste-hint {
   font-size: 0.75rem;
   color: var(--md-sys-color-outline);

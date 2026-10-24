@@ -200,6 +200,7 @@ func setupRouter(h *handler.Handler) *http.ServeMux {
 	mux.HandleFunc("GET /review", h.StartReview)
 	mux.HandleFunc("GET /review/step/{step}", h.ReviewStep)
 	mux.HandleFunc("POST /review/projects/{id}/reviewed", h.MarkProjectReviewed)
+	mux.HandleFunc("POST /review/projects/{id}/items", h.AddProjectItemInReview)
 	mux.HandleFunc("POST /review/items/{id}/reviewed", h.MarkItemReviewed)
 
 	return mux

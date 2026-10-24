@@ -515,8 +515,22 @@ function handleReviewCardSwapped() {
     }
   }
 
+  const step2List = document.getElementById('step2-projects-list');
+  if (step2List) {
+    const remaining = step2List.querySelectorAll('.review-card').length;
+    if (remaining === 0 && !document.getElementById('step2-zero-state')) {
+      const zeroDiv = document.createElement('div');
+      zeroDiv.id = 'step2-zero-state';
+      zeroDiv.className = 'review-card';
+      zeroDiv.style.textAlign = 'center';
+      zeroDiv.style.padding = '40px 20px';
+      zeroDiv.innerHTML = '<h3 style="font-size: 1.1rem; font-weight: 600;">アクティブなプロジェクトはありません</h3><p style="font-size: 0.85rem; color: var(--md-sys-color-outline); margin-top: 4px;">新しいプロジェクトを作成するか、Step 3 へ進みましょう。</p>';
+      step2List.appendChild(zeroDiv);
+    }
+  }
+
   // 週次レビュー仕分け時、サイドバーのViewsカウントを即時リフレッシュ
-  if (step1List || step3List) {
+  if (step1List || step2List || step3List) {
     const sidebar = document.getElementById('sidebar-pane');
     if (sidebar && window.htmx) {
       htmx.ajax('GET', '/partials/sidebar', { target: '#sidebar-pane', swap: 'innerHTML' });

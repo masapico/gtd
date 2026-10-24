@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"gtd/internal/db"
 	"gtd/internal/model"
@@ -51,7 +52,7 @@ func (h *Handler) ReviewStep(w http.ResponseWriter, r *http.Request) {
 	h.Render(w, "review_step.html", data)
 }
 
-// MarkProjectReviewed はプロジェクトの点検完了を記録します
+// MarkProjectReviewed はプロジェクトの点検完了を記録し、更新されたプロジェクトカードを返します
 func (h *Handler) MarkProjectReviewed(w http.ResponseWriter, r *http.Request) {
 	idStr := r.PathValue("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
@@ -66,7 +67,56 @@ func (h *Handler) MarkProjectReviewed(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.Trigger(w, "projectChanged", "itemChanged")
-	w.WriteHeader(http.StatusOK)
+
+	proj, err := db.GetProjectByID(h.DB, id)
+	if err != nil {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	h.Render(w, "review_project_card.html", proj)
+}
+
+// AddProjectItemInReview は週次レビューStep2においてプロジェクトにNext Actionを追加し、更新されたプロジェクトカードを返します
+func (h *Handler) AddProjectItemInReview(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid project ID", http.StatusBadRequest)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	title := strings.TrimSpace(r.FormValue("title"))
+	if title == "" {
+		http.Error(w, "Title is required", http.StatusBadRequest)
+		return
+	}
+
+	item := &model.Item{
+		Title:     title,
+		Status:    "next",
+		ProjectID: &id,
+	}
+
+	if _, err := db.CreateItem(h.DB, item); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	h.Trigger(w, "itemChanged", "projectChanged")
+
+	proj, err := db.GetProjectByID(h.DB, id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	h.Render(w, "review_project_card.html", proj)
 }
 
 // MarkItemReviewed は待機・保留アイテムの点検完了を記録します

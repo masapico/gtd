@@ -38,6 +38,7 @@ func setupTestServer(t *testing.T) (*Handler, http.Handler, func()) {
 		"../../templates/partials/attachments.html",
 		"../../templates/partials/attachment_item.html",
 		"../../templates/partials/review_step.html",
+		"../../templates/partials/review_project_card.html",
 		"../../templates/partials/search_results.html",
 		"../../templates/partials/launchers_modal.html",
 	)
@@ -81,6 +82,7 @@ func setupTestServer(t *testing.T) (*Handler, http.Handler, func()) {
 	mux.HandleFunc("DELETE /contexts/{id}", h.DeleteContext)
 	mux.HandleFunc("GET /review/step/{step}", h.ReviewStep)
 	mux.HandleFunc("POST /review/projects/{id}/reviewed", h.MarkProjectReviewed)
+	mux.HandleFunc("POST /review/projects/{id}/items", h.AddProjectItemInReview)
 	mux.HandleFunc("POST /review/items/{id}/reviewed", h.MarkItemReviewed)
 
 	cleanup := func() {
@@ -636,6 +638,85 @@ func TestWeeklyReviewStep1ContinuousTriageStructure(t *testing.T) {
 	}
 	if strings.Contains(layoutHTML, `<main id="main-content-pane" class="main-content-pane" hx-trigger=`) {
 		t.Errorf("main-content-pane should NOT have hx-trigger attribute directly")
+	}
+}
+
+func TestWeeklyReviewStep2MarkProjectReviewed(t *testing.T) {
+	h, mux, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// 1. Create an active project
+	p := &model.Project{Name: "Review Test Project", Status: "active"}
+	pID, err := db.CreateProject(h.DB, p)
+	if err != nil {
+		t.Fatalf("CreateProject failed: %v", err)
+	}
+
+	// 2. Fetch Step 2 and verify button markup
+	req := httptest.NewRequest("GET", "/review/step/2", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Step 2 request failed: %d", rec.Code)
+	}
+	html := rec.Body.String()
+	cardID := fmt.Sprintf(`id="project-review-card-%d"`, pID)
+	targetAttr := fmt.Sprintf(`hx-target="#project-review-card-%d"`, pID)
+	postAttr := fmt.Sprintf(`hx-post="/review/projects/%d/reviewed"`, pID)
+
+	if !strings.Contains(html, cardID) {
+		t.Errorf("expected %s in Step 2 html", cardID)
+	}
+	if !strings.Contains(html, targetAttr) {
+		t.Errorf("expected %s in Step 2 html", targetAttr)
+	}
+	if !strings.Contains(html, postAttr) {
+		t.Errorf("expected %s in Step 2 html", postAttr)
+	}
+	if !strings.Contains(html, `hx-swap="outerHTML"`) {
+		t.Errorf("expected hx-swap=\"outerHTML\" in Step 2 html")
+	}
+
+	// 3. Post to MarkProjectReviewed
+	req = httptest.NewRequest("POST", fmt.Sprintf("/review/projects/%d/reviewed", pID), nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("MarkProjectReviewed request failed: %d", rec.Code)
+	}
+
+	cardHTML := rec.Body.String()
+	if !strings.Contains(cardHTML, "✓ 点検済") {
+		t.Errorf("expected '✓ 点検済' in returned project card, got: %s", cardHTML)
+	}
+	if !strings.Contains(cardHTML, "btn-reviewed") {
+		t.Errorf("expected 'btn-reviewed' class in returned project card")
+	}
+	if !strings.Contains(cardHTML, "前回点検:") {
+		t.Errorf("expected '前回点検:' in returned project card")
+	}
+
+	// 4. Verify DB was updated
+	proj, err := db.GetProjectByID(h.DB, pID)
+	if err != nil {
+		t.Fatalf("GetProjectByID failed: %v", err)
+	}
+	if proj.LastReviewedAt == nil {
+		t.Fatalf("expected LastReviewedAt to be set")
+	}
+
+	// 5. Add next action in Step 2
+	formData := strings.NewReader("title=My+Next+Step")
+	req = httptest.NewRequest("POST", fmt.Sprintf("/review/projects/%d/items", pID), formData)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("AddProjectItemInReview failed: %d", rec.Code)
+	}
+	afterAddHTML := rec.Body.String()
+	if !strings.Contains(afterAddHTML, "Next Action: <strong>1</strong> 件") {
+		t.Errorf("expected Next Action count to become 1, got: %s", afterAddHTML)
 	}
 }
 

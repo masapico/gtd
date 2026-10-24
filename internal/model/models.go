@@ -37,6 +37,14 @@ func (p Project) IsWaitingOnly() bool {
 	return p.Status == "active" && p.NextActionCount == 0 && p.WaitingCount > 0
 }
 
+// IsReviewedRecently は直近24時間以内に点検されたかを判定します
+func (p Project) IsReviewedRecently() bool {
+	if p.LastReviewedAt == nil {
+		return false
+	}
+	return time.Since(*p.LastReviewedAt) < 24*time.Hour
+}
+
 // Context は場所・状況・相手のタグを表します（例: @PC, @会議）
 type Context struct {
 	ID        int64  `json:"id"`
@@ -144,9 +152,10 @@ func (i Item) NextQuickToggleStatus() string {
 
 // QuickToggleLabel はトグルボタンのラベルを返します
 func (i Item) QuickToggleLabel() string {
-	if i.Status == "next" {
+	switch i.Status {
+	case "next":
 		return "Waitingへ変更"
-	} else if i.Status == "waiting" {
+	case "waiting":
 		return "Next Actionへ戻す"
 	}
 	return ""
@@ -390,9 +399,9 @@ type ProjectStats struct {
 	SomedayCount   int
 	ReferenceCount int
 	InboxCount     int
-	AvailableCount int // 実行可能なNextAction数
-	BlockedCount   int // ブロック中のタスク数
-	Progress       int // 0〜100%
+	AvailableCount int  // 実行可能なNextAction数
+	BlockedCount   int  // ブロック中のタスク数
+	Progress       int  // 0〜100%
 	IsStalled      bool // activeかつ実行可能Next=0かつWaiting=0
 	IsWaitingOnly  bool // activeかつ実行可能Next=0だがWaiting>0
 }
