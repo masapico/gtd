@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#007bc0"/>
+      <stop offset="100%" stop-color="#004c78"/>
+    </linearGradient>
+    <linearGradient id="bgGradDark" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0096e6"/>
+      <stop offset="100%" stop-color="#005d96"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#00182b" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  <style>
+    .bg { fill: url(#bgGrad); }
+    .border { stroke: rgba(255, 255, 255, 0.22); }
+    .check { stroke: #ffffff; }
+    .sparkle { fill: #7cd4fd; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: url(#bgGradDark); }
+      .border { stroke: rgba(255, 255, 255, 0.3); }
+      .sparkle { fill: #a3e5ff; }
+    }
+  </style>
+  
+  <!-- Squircle Base -->
+  <rect class="bg" width="512" height="512" rx="116" />
+  
+  <!-- Subtle Highlight Edge -->
+  <rect class="border" x="8" y="8" width="496" height="496" rx="108" fill="none" stroke-width="10"/>
+
+  <!-- Productivity Sparkle Dot -->
+  <circle class="sparkle" cx="396" cy="116" r="22" filter="url(#shadow)" />
+
+  <!-- Bold Crisp Checkmark -->
+  <path class="check" d="M 136 264 L 216 348 L 376 168" 
+        fill="none" 
+        stroke-width="58" 
+        stroke-linecap="round" 
+        stroke-linejoin="round" 
+        filter="url(#shadow)" />
+</svg>

@@ -93,6 +93,26 @@ func main() {
 	h := handler.NewHandler(database, tmpl, imagesDir)
 
 	// ルーター構築 (Go 1.22+ Standard HTTP Routing)
+	mux := setupRouter(h)
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	host := os.Getenv("HOST")
+	if host == "" {
+		host = "127.0.0.1"
+	}
+
+	addr := host + ":" + port
+	fmt.Printf("\n✅ GTD (%s) is running at http://%s:%s\n\n", Version, host, port)
+	if err := http.ListenAndServe(addr, mux); err != nil {
+		log.Fatalf("Server failed: %v", err)
+	}
+}
+
+// setupRouter はアプリケーションの HTTP ルーティングを構築します
+func setupRouter(h *handler.Handler) *http.ServeMux {
 	mux := http.NewServeMux()
 
 	// 静的アセット配信 (static/)
@@ -105,6 +125,28 @@ func main() {
 		w.Header().Set("Cache-Control", "no-cache, must-revalidate")
 		fileServer.ServeHTTP(w, r)
 	})))
+
+	// Favicon ダイレクト配信 (ブラウザ標準リクエスト対応)
+	mux.HandleFunc("GET /favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		data, err := staticFS.ReadFile("static/favicon.ico")
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "image/x-icon")
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		w.Write(data)
+	})
+	mux.HandleFunc("GET /apple-touch-icon.png", func(w http.ResponseWriter, r *http.Request) {
+		data, err := staticFS.ReadFile("static/apple-touch-icon.png")
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		w.Write(data)
+	})
 
 	// 保存されたスクショ画像配信
 	mux.HandleFunc("GET /data/images/{filename}", h.ServeImage)
@@ -155,18 +197,5 @@ func main() {
 	mux.HandleFunc("POST /review/projects/{id}/reviewed", h.MarkProjectReviewed)
 	mux.HandleFunc("POST /review/items/{id}/reviewed", h.MarkItemReviewed)
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-	host := os.Getenv("HOST")
-	if host == "" {
-		host = "127.0.0.1"
-	}
-
-	addr := host + ":" + port
-	fmt.Printf("\n✅ GTD (%s) is running at http://%s:%s\n\n", Version, host, port)
-	if err := http.ListenAndServe(addr, mux); err != nil {
-		log.Fatalf("Server failed: %v", err)
-	}
+	return mux
 }

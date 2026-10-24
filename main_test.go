@@ -2,7 +2,6 @@ package main
 
 import (
 	"html/template"
-	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -35,14 +34,7 @@ func TestEmbeddedServer(t *testing.T) {
 
 	h := handler.NewHandler(database, tmpl, imagesDir)
 
-	mux := http.NewServeMux()
-	subStatic, err := fs.Sub(staticFS, "static")
-	if err != nil {
-		t.Fatalf("fs.Sub failed: %v", err)
-	}
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(subStatic))))
-	mux.HandleFunc("GET /", h.ServeIndex)
-	mux.HandleFunc("GET /partials/sidebar", h.ServeSidebar)
+	mux := setupRouter(h)
 
 	// 1. Verify embedded static file serving
 	req := httptest.NewRequest("GET", "/static/style.css", nil)
@@ -55,6 +47,42 @@ func TestEmbeddedServer(t *testing.T) {
 		t.Errorf("static/style.css content mismatch")
 	}
 
+	// Verify embedded favicon static serving
+	req = httptest.NewRequest("GET", "/static/favicon.svg", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200 for /static/favicon.svg, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "<svg") || !strings.Contains(rec.Body.String(), "viewBox") {
+		t.Errorf("static/favicon.svg content mismatch")
+	}
+
+	// Verify direct root /favicon.ico serving
+	req = httptest.NewRequest("GET", "/favicon.ico", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200 for /favicon.ico, got %d", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "image/x-icon" {
+		t.Errorf("expected image/x-icon content-type, got %s", ct)
+	}
+	if rec.Body.Len() == 0 {
+		t.Errorf("expected non-empty favicon.ico body")
+	}
+
+	// Verify direct root /apple-touch-icon.png serving
+	req = httptest.NewRequest("GET", "/apple-touch-icon.png", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200 for /apple-touch-icon.png, got %d", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "image/png" {
+		t.Errorf("expected image/png content-type, got %s", ct)
+	}
+
 	// 2. Verify embedded layout template rendering
 	req = httptest.NewRequest("GET", "/", nil)
 	rec = httptest.NewRecorder()
@@ -63,8 +91,14 @@ func TestEmbeddedServer(t *testing.T) {
 		t.Errorf("expected 200 for /, got %d", rec.Code)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "Personal Task & Info Manager") {
-		t.Errorf("expected layout header in body")
+	if !strings.Contains(body, "Getting Things Done") {
+		t.Errorf("expected brand header in body")
+	}
+	if !strings.Contains(body, "rel=\"icon\"") || !strings.Contains(body, "/static/favicon.svg") {
+		t.Errorf("expected favicon link in head")
+	}
+	if !strings.Contains(body, "rel=\"apple-touch-icon\"") {
+		t.Errorf("expected apple-touch-icon link in head")
 	}
 	if !strings.Contains(body, "quick-capture-input") {
 		t.Errorf("expected quick capture input in body")
