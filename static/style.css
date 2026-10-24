@@ -1178,6 +1178,107 @@ body {
   line-height: 1.5;
 }
 
+/* Detail Body Collapsible Accordion (M3) */
+.detail-body-accordion {
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-shape-sm);
+  background-color: var(--md-sys-color-surface-container-low);
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+
+.detail-body-accordion[open] {
+  background-color: var(--md-sys-color-surface-container-lowest);
+  border-color: var(--md-sys-color-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.detail-body-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  background-color: transparent;
+  transition: background-color 0.15s ease;
+}
+
+.detail-body-summary::-webkit-details-marker {
+  display: none;
+}
+
+.detail-body-summary:hover {
+  background-color: var(--md-sys-color-surface-container-high);
+}
+
+.summary-title-area {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.summary-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--md-sys-color-on-surface);
+  flex-shrink: 0;
+}
+
+.body-preview-snippet {
+  font-size: 0.78rem;
+  color: var(--md-sys-color-outline);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+  background-color: var(--md-sys-color-surface-container);
+  padding: 1px 6px;
+  border-radius: var(--md-shape-xs);
+  border: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.body-empty-hint {
+  font-size: 0.75rem;
+  color: var(--md-sys-color-primary);
+  font-weight: 500;
+}
+
+.detail-body-accordion[open] .body-preview-snippet,
+.detail-body-accordion[open] .body-empty-hint {
+  display: none;
+}
+
+.accordion-chevron {
+  transition: transform 0.2s ease;
+  color: var(--md-sys-color-outline);
+  flex-shrink: 0;
+}
+
+.detail-body-accordion[open] .accordion-chevron {
+  transform: rotate(180deg);
+  color: var(--md-sys-color-primary);
+}
+
+.detail-body-edit-area {
+  padding: 8px;
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  background-color: var(--md-sys-color-surface-container-lowest);
+}
+
+.detail-body-edit-area .form-textarea {
+  min-height: 100px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  background-color: var(--md-sys-color-surface);
+}
+
+.detail-body-edit-area .form-textarea:focus {
+  border-color: var(--md-sys-color-primary);
+}
+
 .form-row {
   display: flex;
   gap: 12px;

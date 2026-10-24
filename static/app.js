@@ -494,3 +494,29 @@ function toggleProjectCardEdit(id, show) {
   }
 }
 
+// 9. 詳細メモ・手順の開閉とプレビュー同期
+function onDetailBodyToggle(detailsEl) {
+  if (detailsEl && detailsEl.open) {
+    const textarea = document.getElementById('detail-body');
+    if (textarea) {
+      textarea.focus();
+    }
+  }
+}
+
+function syncBodyPreview(value) {
+  const snippetEl = document.getElementById('body-preview-snippet');
+  if (!snippetEl) return;
+  const trimmed = value.trim();
+  if (trimmed.length > 0) {
+    snippetEl.className = 'body-preview-snippet';
+    snippetEl.title = trimmed;
+    snippetEl.innerText = trimmed;
+  } else {
+    snippetEl.className = 'body-empty-hint';
+    snippetEl.title = '';
+    snippetEl.innerText = '+ メモを追加';
+  }
+}
+
+

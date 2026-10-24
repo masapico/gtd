@@ -179,15 +179,33 @@
         </select>
       </div>
 
-      <!-- Body / Note -->
+      <!-- Body / Note (Collapsible by default) -->
       <div class="form-group">
-        <label class="form-label" for="detail-body">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
-            <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
-          </svg>
-          <span>詳細メモ・手順</span>
-        </label>
-        <textarea id="detail-body" name="body" class="form-textarea" placeholder="業務手順、関連リンク、打ち合わせメモなど...">{{.Item.Body}}</textarea>
+        <details id="detail-body-accordion" class="detail-body-accordion" ontoggle="onDetailBodyToggle(this)">
+          <summary class="detail-body-summary">
+            <div class="summary-title-area">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+                <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 2 2h18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+              </svg>
+              <span class="summary-label">詳細メモ・手順</span>
+              {{if .Item.Body}}
+                <span class="body-preview-snippet" id="body-preview-snippet" title="{{.Item.Body}}">{{.Item.Body}}</span>
+              {{else}}
+                <span class="body-empty-hint" id="body-preview-snippet">+ メモを追加</span>
+              {{end}}
+            </div>
+            <svg class="accordion-chevron" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+              <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+            </svg>
+          </summary>
+          <div class="detail-body-edit-area">
+            <textarea id="detail-body" 
+                      name="body" 
+                      class="form-textarea" 
+                      placeholder="業務手順、関連リンク、打ち合わせメモなど..." 
+                      oninput="syncBodyPreview(this.value)">{{.Item.Body}}</textarea>
+          </div>
+        </details>
       </div>
     </form>
 
