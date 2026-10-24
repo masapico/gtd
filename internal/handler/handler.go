@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
@@ -44,6 +45,12 @@ func (h *Handler) Trigger(w http.ResponseWriter, events ...string) {
 	}
 	data, _ := json.Marshal(eventMap)
 	w.Header().Set("HX-Trigger", string(data))
+}
+
+// TriggerToast はトースト通知イベントを安全に送信します（HTTPヘッダーの文字化けを防ぐためURLエンコード）
+func (h *Handler) TriggerToast(w http.ResponseWriter, message string) {
+	payload := fmt.Sprintf(`{"showToast": "%s"}`, url.QueryEscape(message))
+	w.Header().Set("HX-Trigger", payload)
 }
 
 // Render は指定されたテンプレートを描画します

@@ -53,7 +53,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create sub filesystem: %v", err)
 	}
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(subStatic))))
+	fileServer := http.FileServer(http.FS(subStatic))
+	mux.Handle("GET /static/", http.StripPrefix("/static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache, must-revalidate")
+		fileServer.ServeHTTP(w, r)
+	})))
 
 	// 保存されたスクショ画像配信
 	mux.HandleFunc("GET /data/images/{filename}", h.ServeImage)

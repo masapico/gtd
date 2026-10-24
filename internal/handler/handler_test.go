@@ -57,6 +57,7 @@ func setupTestServer(t *testing.T) (*Handler, http.Handler, func()) {
 	mux.HandleFunc("POST /items/{id}/attachments", h.AddAttachment)
 	mux.HandleFunc("POST /items/{id}/paste-image", h.PasteImage)
 	mux.HandleFunc("GET /items/{id}/attachments", h.GetAttachments)
+	mux.HandleFunc("POST /attachments/{id}/open", h.OpenAttachment)
 	mux.HandleFunc("DELETE /attachments/{id}", h.DeleteAttachment)
 	mux.HandleFunc("POST /projects", h.CreateProject)
 	mux.HandleFunc("PUT /projects/{id}", h.UpdateProject)
@@ -837,5 +838,151 @@ func TestUpdateProjectNameAndDescription(t *testing.T) {
 	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("expected 400 for empty project name, got: %d", rec.Code)
+	}
+}
+
+func TestCleanPathInput(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "Trims spaces and double quotes",
+			input:    `  "C:\Users\ma\Desktop\some file.png"  `,
+			expected: `C:\Users\ma\Desktop\some file.png`,
+		},
+		{
+			name:     "Trims single quotes",
+			input:    `'/Users/ma/Desktop/test.txt'`,
+			expected: `/Users/ma/Desktop/test.txt`,
+		},
+		{
+			name:     "Replaces half-width yen with backslash",
+			input:    `¥¥server¥some¥file.txt`,
+			expected: `\\server\some\file.txt`,
+		},
+		{
+			name:     "Replaces full-width yen with backslash",
+			input:    `￥￥server￥share￥file.txt`,
+			expected: `\\server\share\file.txt`,
+		},
+		{
+			name:     "Normalizes file:/// scheme for Unix",
+			input:    `file:///Users/ma/Pictures/photo.jpg`,
+			expected: `/Users/ma/Pictures/photo.jpg`,
+		},
+		{
+			name:     "Normalizes file:/// scheme for Windows",
+			input:    `file:///C:/Users/ma/Desktop/doc.pdf`,
+			expected: `C:/Users/ma/Desktop/doc.pdf`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := CleanPathInput(tt.input)
+			if actual != tt.expected {
+				t.Errorf("expected %q, got %q", tt.expected, actual)
+			}
+		})
+	}
+}
+
+func TestOpenAttachment_PathCheckAndErrors(t *testing.T) {
+	_, mux, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	// 1. テスト用アイテムを作成
+	form := url.Values{}
+	form.Set("title", "添付オープン機能のテスト")
+	req := httptest.NewRequest("POST", "/items", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	// アイテムIDを取得するため詳細を直接確認（ID=1）
+	itemID := int64(1)
+
+	// 2. 存在しないパス（空白入り）を添付として登録
+	nonExistentPath := `"/Users/ma/Deskstop/2026-10-24 9.02.30.png"`
+	form = url.Values{}
+	form.Set("target", nonExistentPath)
+	form.Set("label", "存在しないファイル")
+	req = httptest.NewRequest("POST", fmt.Sprintf("/items/%d/attachments", itemID), strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Add attachment failed: %d", rec.Code)
+	}
+
+	attID := int64(1)
+
+	// 3. 存在しないパスを開こうとした場合、404 Not Found と分かりやすいエラーメッセージが返ること
+	req = httptest.NewRequest("POST", fmt.Sprintf("/attachments/%d/open", attID), nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for non-existent file, got: %d (%s)", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "ファイルまたはフォルダーが見つかりません") {
+		t.Errorf("expected error message about missing file, got: %s", rec.Body.String())
+	}
+
+	// 4. 実在する一時ファイルを作成して添付し、パスチェックが正常に通ることを確認
+	var openedTarget string
+	origOpenFileFunc := openFileFunc
+	openFileFunc = func(target string) error {
+		openedTarget = target
+		return nil
+	}
+	defer func() {
+		openFileFunc = origOpenFileFunc
+	}()
+
+	tmpFile, err := os.CreateTemp("", "gtd_test_open_*.txt")
+	if err != nil {
+		t.Fatalf("CreateTemp failed: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.WriteString("hello GTD")
+	tmpFile.Close()
+
+	form = url.Values{}
+	form.Set("target", tmpFile.Name())
+	form.Set("label", "実在する一時ファイル")
+	req = httptest.NewRequest("POST", fmt.Sprintf("/items/%d/attachments", itemID), strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Add attachment for temp file failed: %d", rec.Code)
+	}
+
+	attID2 := int64(2)
+
+	// 実行
+	req = httptest.NewRequest("POST", fmt.Sprintf("/attachments/%d/open", attID2), nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	// 実在ファイルを開いた場合、エラーなく200 OKが返り、トースト通知ヘッダが含まれること
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for existing file, got: %d (%s)", rec.Code, rec.Body.String())
+	}
+	trigger := rec.Header().Get("HX-Trigger")
+	if !strings.Contains(trigger, "attachmentOpened") {
+		t.Errorf("expected HX-Trigger attachmentOpened header, got: %s", trigger)
+	}
+	// HTTPヘッダー値がすべてASCII（文字化け・RFC違反防止）であること
+	for i := 0; i < len(trigger); i++ {
+		if trigger[i] > 127 {
+			t.Errorf("HX-Trigger header contains non-ASCII byte at %d: %x (header: %s)", i, trigger[i], trigger)
+			break
+		}
+	}
+	if openedTarget != tmpFile.Name() {
+		t.Errorf("expected opened target %q, got %q", tmpFile.Name(), openedTarget)
 	}
 }

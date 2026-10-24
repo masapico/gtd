@@ -191,21 +191,77 @@ async function copyToClipboard(text, btnElement) {
 }
 
 // 6. トーストメッセージ表示
-function showToast(message) {
+function showToast(message, isError) {
+  if (!message) return;
+  message = decodeToastMessage(message);
+
   let toast = document.getElementById('app-toast');
   if (!toast) {
     toast = document.createElement('div');
     toast.id = 'app-toast';
-    toast.className = 'toast-notice';
     document.body.appendChild(toast);
   }
+  toast.className = 'toast-notice' + (isError ? ' toast-error' : '');
   toast.innerText = message;
   toast.style.opacity = '1';
   clearTimeout(toast._timeout);
+  const duration = (message && message.length > 25) || isError ? 5000 : 2500;
   toast._timeout = setTimeout(() => {
     toast.style.opacity = '0';
-  }, 2500);
+  }, duration);
 }
+
+// トーストメッセージのデコード（URLエンコード解除および Latin-1 文字化けの自動修復）
+function decodeToastMessage(raw) {
+  if (!raw) return '';
+  let str = String(raw);
+  // 1. URLエンコード (%E3%83...) されている場合はデコード
+  try {
+    if (str.includes('%')) {
+      str = decodeURIComponent(str.replace(/\+/g, ' '));
+    }
+  } catch (_) {}
+
+  // 2. HTTPヘッダー経由で UTF-8 が Latin-1 (ISO-8859-1) として解釈された文字化け（ã... など）を修復
+  if (/[\u0080-\u00FF]/.test(str)) {
+    try {
+      const bytes = Uint8Array.from(str, c => c.charCodeAt(0));
+      const decoded = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+      if (decoded) str = decoded;
+    } catch (_) {}
+  }
+  return str;
+}
+
+// 添付ファイルオープン成功時のトースト通知
+document.addEventListener('attachmentOpened', () => {
+  showToast('ファイルまたはリンクを開きました');
+});
+
+// HTMX のカスタムトリガー 'showToast' をリッスン
+document.addEventListener('showToast', (e) => {
+  const rawMsg = typeof e.detail === 'string' ? e.detail : (e.detail?.value || '完了しました');
+  showToast(rawMsg);
+});
+
+// HTMX リクエスト失敗時のエラー通知 (HTMX 4: htmx:response:error, HTMX 1/2: htmx:responseError)
+function handleHtmxError(e) {
+  const ctx = e.detail?.ctx;
+  const xhr = e.detail?.xhr;
+  const status = ctx?.response?.status || xhr?.status || 0;
+  let msg = ctx?.text || xhr?.responseText || '';
+  if (!msg && e.detail?.error) {
+    msg = e.detail.error.message || String(e.detail.error);
+  }
+  if (!msg) {
+    msg = status ? `リクエストに失敗しました (${status})` : 'エラーが発生しました';
+  }
+  showToast(msg.trim(), true);
+}
+
+document.addEventListener('htmx:response:error', handleHtmxError);
+document.addEventListener('htmx:responseError', handleHtmxError);
+document.addEventListener('htmx:error', handleHtmxError);
 
 // 7. 中央ペインの hx-get 属性を動的に追従（ビュー切り替え後のリフレッシュ先を維持）
 function syncMainPaneUrl(e) {

@@ -953,6 +953,10 @@ body {
   position: fixed;
   bottom: 20px;
   right: 20px;
+  max-width: 460px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.4;
   background-color: var(--md-sys-color-on-surface);
   color: var(--md-sys-color-surface);
   padding: 10px 18px;
@@ -962,6 +966,11 @@ body {
   z-index: 1000;
   transition: opacity 0.3s ease;
   pointer-events: none;
+}
+.toast-notice.toast-error {
+  background-color: var(--md-sys-color-error, #b3261e);
+  color: #ffffff;
+  border-left: 4px solid #f9dedc;
 }
 
 /* ==========================================================================
