@@ -101,9 +101,8 @@ func main() {
 	}
 
 	addr := ":" + port
-	fmt.Printf("\n🚀 GTD Personal Manager is running at http://localhost:%s\n\n", port)
+	fmt.Printf("\n✅ GTD is running at http://localhost:%s\n\n", port)
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
 }
-
