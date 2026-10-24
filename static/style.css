@@ -70,6 +70,11 @@ body {
   flex-direction: column;
 }
 
+/* Global Hidden Utility */
+.hidden {
+  display: none !important;
+}
+
 /* ==========================================================================
    Top App Bar & Quick Capture
    ========================================================================== */
@@ -209,7 +214,8 @@ body {
 .clock-text-group {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: center;
+  text-align: center;
 }
 
 .clock-date {
@@ -220,11 +226,31 @@ body {
 }
 
 .clock-time {
-  font-size: 0.86rem;
+  font-size: 0.92rem;
   font-weight: 600;
   color: var(--md-sys-color-on-surface);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.clock-colon {
+  display: inline-block;
+  width: 0.35em;
+  text-align: center;
+  animation: colonBlink 1s infinite steps(1, start);
+}
+
+@keyframes colonBlink {
+  0%, 49% {
+    opacity: 1;
+  }
+  50%, 100% {
+    opacity: 0;
+  }
 }
 
 /* Subtle Active Badges in Clock Widget */
@@ -244,6 +270,10 @@ body {
   border-radius: var(--md-shape-full);
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
+}
+
+.clock-badge.hidden {
+  display: none !important;
 }
 
 .clock-badge-timer {
@@ -2542,6 +2572,10 @@ body {
   flex-direction: column;
 }
 
+.clock-tab-panel.hidden {
+  display: none !important;
+}
+
 /* Timer Display Card */
 .timer-display-card {
   background-color: var(--md-sys-color-surface-container-low);
@@ -2796,6 +2830,13 @@ body {
   color: var(--md-sys-color-on-secondary-container);
 }
 
+.alarm-status-box.ringing {
+  background-color: var(--md-sys-color-error-container) !important;
+  border-color: var(--md-sys-color-error) !important;
+  color: var(--md-sys-color-on-error-container) !important;
+  animation: clockAlertPulse 1.2s infinite ease-in-out;
+}
+
 .alarm-status-icon {
   width: 36px;
   height: 36px;
@@ -2811,6 +2852,12 @@ body {
 .alarm-status-box.active .alarm-status-icon {
   background-color: var(--md-sys-color-secondary);
   color: var(--md-sys-color-on-secondary);
+}
+
+.alarm-status-box.ringing .alarm-status-icon {
+  background-color: var(--md-sys-color-error) !important;
+  color: var(--md-sys-color-on-error) !important;
+  animation: alertIconPulse 1.2s infinite ease-in-out;
 }
 
 .alarm-status-headline {

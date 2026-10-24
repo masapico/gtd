@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GTD - Personal Task & Info Manager</title>
-  <link rel="stylesheet" href="/static/style.css?v=9">
+  <link rel="stylesheet" href="/static/style.css?v=13">
   <script src="/static/htmx.min.js"></script>
-  <script src="/static/app.js?v=9"></script>
+  <script src="/static/app.js?v=13"></script>
 </head>
 <body hx-ext="morph">
 
@@ -107,7 +107,9 @@
         </span>
         <div class="clock-text-group">
           <div class="clock-date" id="clock-date">----/--/-- ---</div>
-          <div class="clock-time" id="clock-time">--:--:--</div>
+          <div class="clock-time" id="clock-time">
+            <span id="clock-hours">--</span><span class="clock-colon" id="clock-colon">:</span><span id="clock-minutes">--</span>
+          </div>
         </div>
         <!-- Active Status Indicators (subtle badges for alarm & timer) -->
         <div class="clock-status-badges" id="clock-status-badges">
@@ -335,7 +337,7 @@
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
                   <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
                 </svg>
-                解除
+                <span id="alarm-cancel-btn-text">解除</span>
               </button>
             </div>
           </div>
