@@ -149,9 +149,13 @@ func main() {
 	if port == "" {
 		port = "8080"
 	}
+	host := os.Getenv("HOST")
+	if host == "" {
+		host = "127.0.0.1"
+	}
 
-	addr := ":" + port
-	fmt.Printf("\n✅GTD is running at http://localhost:%s\n\n", port)
+	addr := host + ":" + port
+	fmt.Printf("\n✅GTD is running at http://%s:%s\n\n", host, port)
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
