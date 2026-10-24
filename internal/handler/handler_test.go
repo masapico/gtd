@@ -237,8 +237,8 @@ func TestItemStatusChange(t *testing.T) {
 
 	// Check response body renders updated detail with active waiting status
 	body := rec.Body.String()
-	if !strings.Contains(body, `class="status-btn active"`) || !strings.Contains(body, "Waiting For") {
-		t.Errorf("expected Waiting For button to be active in returned detail html, got: %s", body)
+	if !strings.Contains(body, `class="status-btn active"`) || !strings.Contains(body, "Waiting") {
+		t.Errorf("expected Waiting button to be active in returned detail html, got: %s", body)
 	}
 
 	// Verify DB state

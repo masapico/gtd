@@ -5,8 +5,11 @@
      hx-swap="innerHTML">
   <!-- Detail Header -->
   <div class="detail-header">
-    <div style="font-size: 0.85rem; font-weight: 600; color: var(--md-sys-color-on-surface-variant);">
-      アイテム詳細
+    <div style="font-size: 0.85rem; font-weight: 600; color: var(--md-sys-color-on-surface-variant); display: flex; align-items: center; gap: 6px;">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="color: var(--md-sys-color-primary); flex-shrink: 0;">
+        <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+      </svg>
+      <span>アイテム詳細</span>
     </div>
     <div class="detail-header-actions">
       <!-- Delete Button -->
@@ -33,72 +36,87 @@
   <div class="detail-body">
     <!-- Status Selector -->
     <div class="form-group">
-      <label class="form-label">Status</label>
+      <label class="form-label">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+        </svg>
+        <span>Status</span>
+      </label>
       <div class="status-selector">
         <button type="button" class="status-btn {{if eq .Item.Status "inbox"}}active{{end}}" 
                 hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "inbox"}'
                 hx-target="#item-detail-pane" hx-swap="innerHTML">
-    <svg class="nav-icon" viewBox="0 0 24 24">
-      <path d="M19 3H4.99c-1.11 0-1.98.89-1.98 2L3 19c0 1.1.88 2 1.99 2H19c1.1 0 2-.9 2-2V5c0-1.11-.9-2-2-2zm0 12h-4c0 1.66-1.35 3-3 3s-3-1.34-3-3H4.99V5H19v10z"/>
-    </svg>
-          Inbox
+          <svg class="nav-icon" viewBox="0 0 24 24">
+            <path d="M19 3H4.99c-1.11 0-1.98.89-1.98 2L3 19c0 1.1.88 2 1.99 2H19c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 12h-4c0 1.66-1.35 3-3 3s-3-1.34-3-3H4.99V5H19v10z"/>
+          </svg>
+          <span>Inbox</span>
         </button>
         <button type="button" class="status-btn {{if eq .Item.Status "next"}}active{{end}}" 
                 hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "next"}'
                 hx-target="#item-detail-pane" hx-swap="innerHTML">
-    <svg class="nav-icon" viewBox="0 0 24 24">
-      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
-    </svg>
-          Next
+          <svg class="nav-icon" viewBox="0 0 24 24">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+          </svg>
+          <span>Next</span>
         </button>
         <button type="button" class="status-btn {{if eq .Item.Status "waiting"}}active{{end}}" 
                 hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "waiting"}'
                 hx-target="#item-detail-pane" hx-swap="innerHTML">
-    <svg class="nav-icon" viewBox="0 0 24 24">
-      <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
-    </svg>
-          Waiting
+          <svg class="nav-icon" viewBox="0 0 24 24">
+            <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+          </svg>
+          <span>Waiting</span>
         </button>
         <button type="button" class="status-btn {{if eq .Item.Status "someday"}}active{{end}}" 
                 hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "someday"}'
                 hx-target="#item-detail-pane" hx-swap="innerHTML">
-    <svg class="nav-icon" viewBox="0 0 24 24">
-      <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm6 12H6v-1.4c0-2 4-3.1 6-3.1s6 1.1 6 3.1V18z"/>
-    </svg>
-          Someday
+          <svg class="nav-icon" viewBox="0 0 24 24">
+            <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm6 12H6v-1.4c0-2 4-3.1 6-3.1s6 1.1 6 3.1V18z"/>
+          </svg>
+          <span>Someday</span>
         </button>
         <button type="button" class="status-btn {{if eq .Item.Status "reference"}}active{{end}}" 
                 hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "reference"}'
                 hx-target="#item-detail-pane" hx-swap="innerHTML">
-    <svg class="nav-icon" viewBox="0 0 24 24">
-      <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/>
-    </svg>
-          Reference
+          <svg class="nav-icon" viewBox="0 0 24 24">
+            <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/>
+          </svg>
+          <span>Reference</span>
         </button>
         <button type="button" class="status-btn {{if eq .Item.Status "done"}}active{{end}}" 
                 hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "done"}'
                 hx-target="#item-detail-pane" hx-swap="innerHTML">
-    <svg class="nav-icon" viewBox="0 0 24 24">
-      <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/>
-    </svg>
-          Done
+          <svg class="nav-icon" viewBox="0 0 24 24">
+            <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/>
+          </svg>
+          <span>Done</span>
         </button>
       </div>
     </div>
 
     <!-- Auto-saving Item Detail Form -->
-    <form hx-put="/items/{{.Item.ID}}" hx-trigger="change, input delay:500ms" hx-swap="none">
+    <form class="detail-form" hx-put="/items/{{.Item.ID}}" hx-trigger="change, input delay:500ms" hx-swap="none">
       <input type="hidden" name="status" value="{{.Item.Status}}">
 
       <!-- Title -->
       <div class="form-group">
-        <label class="form-label" for="detail-title">タイトル</label>
+        <label class="form-label" for="detail-title">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+          </svg>
+          <span>タイトル</span>
+        </label>
         <input id="detail-title" name="title" class="form-input" type="text" value="{{.Item.Title}}" placeholder="タイトル... (#タグ ^期日 も利用可能)" required autocomplete="off">
       </div>
 
       <!-- Project -->
       <div class="form-group">
-        <label class="form-label" for="detail-project">プロジェクト</label>
+        <label class="form-label" for="detail-project">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+            <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+          </svg>
+          <span>プロジェクト</span>
+        </label>
         <select id="detail-project" name="project_id" class="form-select">
           <option value="">（プロジェクト未設定）</option>
           {{range .AllProjects}}
@@ -112,11 +130,22 @@
       <!-- Due Date & Recurrence -->
       <div class="form-row">
         <div class="form-group">
-          <label class="form-label" for="detail-due">期日</label>
+          <label class="form-label" for="detail-due">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+              <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/>
+            </svg>
+            <span>期日</span>
+          </label>
           <input id="detail-due" name="due_date" class="form-input" type="date" value="{{formatShortDate .Item.DueDate}}">
         </div>
         <div class="form-group">
-          <label class="form-label" for="detail-recurrence">繰り返し（業務リピート）</label>
+          <label class="form-label" for="detail-recurrence">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+              <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
+            </svg>
+            <span>繰り返し</span>
+            <span style="font-size: 0.72rem; color: var(--md-sys-color-outline); font-weight: normal;">(リピート)</span>
+          </label>
           <select id="detail-recurrence" name="recurrence" class="form-select">
             <option value="none" {{if eq .Item.Recurrence "none"}}selected{{end}}>なし</option>
             <option value="daily" {{if eq .Item.Recurrence "daily"}}selected{{end}}>毎日</option>
@@ -130,14 +159,24 @@
 
       <!-- Body / Note -->
       <div class="form-group">
-        <label class="form-label" for="detail-body">詳細メモ・手順</label>
+        <label class="form-label" for="detail-body">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+            <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+          </svg>
+          <span>詳細メモ・手順</span>
+        </label>
         <textarea id="detail-body" name="body" class="form-textarea" placeholder="業務手順、関連リンク、打ち合わせメモなど...">{{.Item.Body}}</textarea>
       </div>
     </form>
 
     <!-- Context Tags Selector -->
     <div class="form-group">
-      <label class="form-label">Context タグ</label>
+      <label class="form-label">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+          <path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z"/>
+        </svg>
+        <span>Context タグ</span>
+      </label>
       <div class="context-tags-wrapper">
         {{range .AllContexts}}
           <button type="button" 
@@ -157,4 +196,3 @@
     </div>
   </div>
 </div>
-
