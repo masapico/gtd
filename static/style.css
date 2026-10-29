@@ -1041,11 +1041,14 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  row-gap: 8px;
+  flex-wrap: wrap;
 }
 
 .content-title {
   font-size: 1.3rem;
   font-weight: 700;
+  overflow-wrap: anywhere;
   color: var(--md-sys-color-on-surface);
   transition: color 0.15s ease;
 }
@@ -1067,6 +1070,7 @@ body {
 
 .content-description {
   font-size: 0.85rem;
+  overflow-wrap: anywhere;
   color: var(--md-sys-color-on-surface-variant);
   margin-top: 2px;
 }

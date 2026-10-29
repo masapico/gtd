@@ -6,7 +6,7 @@
   <div class="content-title-row">
     {{if and (eq .View "project") .CurrentProject}}
       <!-- 通常表示（プロジェクト名と編集ボタン） -->
-      <div id="project-title-view" style="flex: 1; min-width: 0;">
+      <div id="project-title-view" style="flex: 1; min-width: 240px;">
         <div style="display: flex; align-items: center; gap: 8px;">
           <h1 class="content-title" 
               onclick="toggleProjectEdit(true)" 
@@ -34,7 +34,7 @@
 
       <!-- インライン編集フォーム -->
       <form id="project-title-edit" 
-            style="display: none; flex: 1; min-width: 0; margin-right: 16px;"
+            style="display: none; flex: 1; min-width: 240px; margin-right: 16px;"
             hx-put="/projects/{{.CurrentProject.ID}}" 
             hx-swap="none"
             onsubmit="setTimeout(() => showToast('プロジェクトを更新しました'), 50)">
@@ -78,7 +78,7 @@
         <h1 class="content-title">{{.Title}}</h1>
       </div>
     {{end}}
-    <div>
+    <div style="margin-left: auto;">
       {{if eq .View "project"}}
         {{if .CurrentProject}}
           <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
