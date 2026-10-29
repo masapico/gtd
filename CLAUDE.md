@@ -1,102 +1,106 @@
-# CLAUDE.md \- GTD Tool Development Guidelines
+# CLAUDE.md - GTD Tool Development Guidelines
 
-## 1\. Project Overview
+## 1. Project Overview
 
-職場のオフライン環境やプロキシ制限下でも軽快に動作する、個人用のGTD（Getting Things Done）タスク・情報管理ツール。
+職場のオフライン環境やプロキシ制限下でも軽快に動作する、個人用の GTD（Getting Things Done）タスク・情報管理ツール。
 
-- **シングルバイナリ 배포**: Goの `embed` を活用し、単一の実行ファイル（＋ローカルDB・画像保存フォルダ）で完結させる。  
-- **外部依存ゼロ**: CDN不使用。フロントエンドのビルドステップ（npm / Webpack / Vite等）も一切設けない。  
-- **軽量・高速なUI**: `htmx` と軽量CSS（同梱）を用いた1画面完結型（3ペイン構成）で、ページリロードのない快適な操作感を提供する。
+- **シングルバイナリ配布**: Go の `embed` で静的ファイル・テンプレートを同梱し、単一の実行ファイル（＋実行時に生成される `data/`）で完結させる。
+- **外部依存ゼロ**: CDN 不使用。フロントエンドのビルドステップ（npm / Webpack / Vite 等）は一切設けない。
+- **軽量・高速な UI**: `htmx` と同梱 CSS による 1 画面完結型（3 ペイン構成）。ページリロードなしで操作できること。
+- **localhost 前提**: 既定で `127.0.0.1:8080` にバインドする個人利用ツール。ログイン認証は実装しない方針（経緯は `PLAN.md`）。
 
-## 2\. Tech Stack & Constraints
+関連ドキュメント:
 
-- **Language**: Go (1.22+ 推奨。標準の `net/http` の強化されたルーティング `GET /path/{id}` 等を使用)  
-- **Database**: SQLite (`modernc.org/sqlite` を使用し、CGO\_ENABLED=0 のPure Goでビルド可能にする)  
-- **Templating**: Go標準 `html/template`  
-- **Static Assets**: Go標準 `embed` (`//go:embed static/* templates/*`)  
-- **Frontend**:  
-  - `htmx.min.js` (ローカルの `static/` に配置して配信)  
-  - 軽量クラスレス/マイクロCSS (`Pico.css` または `Chota` 等を `static/` に配置)  
-  - Vanilla JS (クリップボードからの画像ペースト処理など、最小限の補助スクリプトのみ)
+- `DESIGN.md` — 設計思想、DB スキーマ、画面仕様（UI 変更・スキーマ変更の前に読むこと）
+- `PLAN.md` — 機能計画と実装状況のチェックリスト、設計判断メモ
+- `README.md` — ユーザー向けの機能説明
 
-### 厳守すべき制約（Anti-Patterns / Out of Scope）
+## 2. Commands
 
-1. **CGOを使わない**: 職場環境への持ち込みやクロスコンパイルを容易にするため、`mattn/go-sqlite3` ではなく `modernc.org/sqlite` を使う。  
-2. **CDNリンクを貼らない**: HTMLテンプレート内に `https://unpkg.com/...` などの外部リソースを含めない。  
-3. **フロントエンドの複雑化を避ける**:  
-   - ツール内での画像編集・キャンバス描画機能は実装しない（OS標準のスクショツールで加工してから `Ctrl + V` で貼る運用とする）。  
-   - CSVパーサーやグラフライブラリ（Chart.js等）は導入しない。  
-   - リッチテキストエディタは導入せず、プレーンテキスト（またはシンプルな表示）にとどめる。
+```sh
+go run .                 # 開発サーバー起動（PORT / HOST 環境変数で変更可）
+go test ./...            # 全テスト
+go build -o gtd .        # ビルド（CGO_ENABLED=0 でも通ること）
+./gtd backup             # data/ を無停止で ./backup/*.zip にスナップショット
+go run ./cmd/release v1.0.0 [-os windows] [-arch amd64]   # クロスビルドして dist/ に zip 出力
+go run ./cmd/genfavicon  # static/ のファビコン類を再生成
+```
 
-## 3\. Recommended Directory Structure
+## 3. Tech Stack
 
+- **Language**: Go（`go.mod` 参照）。標準 `net/http` の拡張ルーティング（`GET /path/{id}` 等）を使う。ルーターは `main.go` の `setupRouter`。
+- **Database**: SQLite（`modernc.org/sqlite`、Pure Go）
+- **Templating**: 標準 `html/template`
+- **Static Assets**: 標準 `embed`（`main.go` で `static/*` と `templates/*` を埋め込み）
+- **Frontend**:
+  - `static/htmx.min.js`（ローカル同梱）
+  - `static/style.css` — Material Design 3 準拠の自前 CSS（トークンは `:root` に定義）
+  - `static/app.js` — Vanilla JS（Ctrl+V 画像貼り付け、ショートカット等の最小限の補助）
+
+## 4. Hard Constraints（厳守）
+
+1. **CGO を使わない**: クロスコンパイルと職場への持ち込みを容易にするため、`mattn/go-sqlite3` ではなく `modernc.org/sqlite` を使う。
+2. **外部リソースを読み込まない**: テンプレートに `https://unpkg.com/...` 等の CDN リンクや外部フォントを含めない。必要なものは `static/` に同梱する。
+3. **フロントエンドを複雑化しない**:
+   - 画像編集・キャンバス描画は実装しない（OS のスクショツールで加工 → `Ctrl+V` で貼る運用）。
+   - CSV パーサーやグラフライブラリ（Chart.js 等）は導入しない。
+   - リッチテキストエディタは導入しない（プレーンテキスト / 簡易表示のみ）。
+   - npm パッケージやビルド工程を追加しない。
+4. **UI に絵文字を使わない**: アイコンはインライン SVG 等を使う。見た目は Material Design 3 に合わせる。
+
+## 5. Directory Structure
+
+```
 .
-
-├── main.go                 \# エントリーポイント、サーバー起動、embed定義
-
-├── go.mod
-
-├── go.sum
-
+├── main.go                  # エントリーポイント、embed 定義、ルーター、backup サブコマンド
+├── cmd/
+│   ├── release/             # クロスビルド＆zip パッケージング
+│   └── genfavicon/          # ファビコン生成
 ├── internal/
-
 │   ├── db/
-
-│   │   ├── db.go           \# SQLite接続、マイグレーション（テーブル初期化）
-
-│   │   └── queries.go      \# CRUDおよび週次レビュー用クエリ
-
-│   ├── model/
-
-│   │   └── models.go       \# Project, Item, Context, Attachment 構造体
-
+│   │   ├── db.go            # SQLite 接続、マイグレーション
+│   │   └── queries.go       # CRUD、週次レビュー用クエリ
+│   ├── model/models.go      # Project, Item, Context, Attachment 等の構造体
+│   ├── smartadd/parser.go   # Quick Capture の Smart Add 記法パーサー（~日付 など）
+│   ├── backup/              # オンラインバックアップ（`gtd backup`）
 │   └── handler/
-
-│       ├── views.go        \# 画面・htmxパーシャル描画ハンドラ
-
-│       ├── items.go        \# Item操作API (CRUD, ステータス変更)
-
-│       ├── projects.go     \# Project操作API
-
-│       ├── review.go       \# 週次レビュー専用ウィザードハンドラ
-
-│       └── attachments.go  \# ファイルパス起動(exec)、スクショ画像保存
-
-├── static/
-
-│   ├── htmx.min.js
-
-│   ├── style.css
-
-│   └── app.js              \# Ctrl+V スクショ貼り付け用の最小限のJS
-
+│       ├── handler.go       # Handler 構造体、共通処理
+│       ├── views.go         # 画面・htmx パーシャル描画
+│       ├── items.go         # Item 操作 API（CRUD、ステータス変更）
+│       ├── projects.go      # Project 操作 API
+│       ├── review.go        # 週次レビュー（3 ステップウィザード）
+│       ├── attachments.go   # 添付（URL、ローカルパス起動、スクショ保存）
+│       ├── launchers.go     # アプリケーションランチャー
+│       └── search.go        # オムニサーチ
+├── static/                  # htmx.min.js, style.css, app.js, favicon 類
 ├── templates/
+│   ├── layout.html          # 3 ペイン全体レイアウト
+│   └── partials/            # htmx で差し替える部分テンプレート
+├── data/                    # 実行時に自動生成（gitignore）: gtd.db, images/
+└── backup/                  # `gtd backup` の出力先（gitignore）
+```
 
-│   ├── layout.html         \# 3ペイン全体レイアウト
+## 6. Coding Guidelines
 
-│   ├── partials/           \# htmxで差し替える部分テンプレート群
+### htmx Partial Rendering
 
-│   │   ├── item\_list.html
+- ハンドラは `HX-Request` ヘッダを見るか、専用エンドポイント（`/views/...`, `/partials/...`）を用意し、必要な HTML フラグメントだけを返す。
+- 状態変更（POST/PUT/PATCH/DELETE）後は `HX-Trigger` レスポンスヘッダで関連ペイン（Inbox バッジ、中央リスト等）を更新させる。
+- 新しい部分テンプレートは `templates/partials/` に置く。
 
-│   │   ├── item\_detail.html
+### Static Asset Cache Busting
 
-│   │   └── review\_step.html
+- `static/style.css` または `static/app.js` を変更したら、`templates/layout.html` の `?v=N` を両方インクリメントする（ブラウザキャッシュ対策）。
 
-└── data/                   \# 実行時に自動生成（バイナリと同階層）
+### Local OS Integration
 
-    ├── gtd.db              \# SQLiteデータベースファイル
+- ローカルのファイル／フォルダ（`C:\...`, `\\server\...`）を開く処理は `os/exec` で行う（Windows: `cmd /c start "" "<path>"` または `explorer "<path>"`）。エンドポイントは `POST /attachments/{id}/open`。
+- パスはシェル文字列に連結せず、引数として渡すこと。
 
-    └── images/             \# Ctrl+Vで保存されたスクリーンショット実体
+### Tests
 
-## 4\. Coding Guidelines
+- DB クエリは `internal/db/*_test.go`、ハンドラは `internal/handler/handler_test.go` にテストがある。機能追加・修正時は対応するテストも追加・更新し、`go test ./...` が通ることを確認する。
 
-- **htmx Partial Rendering**:  
-  - ハンドラは `HX-Request` ヘッダの有無を確認するか、専用エンドポイント（`/views/...`, `/partials/...`）を用意し、必要なHTMLフラグメントのみを返すこと。  
-  - 状態変更（POST/PUT/PATCH/DELETE）後は、`HX-Trigger` レスポンスヘッダを活用して関連ペイン（未処理バッジの数字や中央リストなど）を自動更新させる設計を推奨する。  
-- **Local OS Integration**:  
-  - ローカルフォルダやファイルパス（`C:\...` や `\\server\...`）を開く機能は、localhost環境で動作する前提のもと、Goの `os/exec`（Windowsの場合は `cmd /c start "" "<path>"` または `explorer "<path>"`）で安全に呼び出すエンドポイント `POST /attachments/{id}/open` として実装する。  
-- **Step-by-Step Implementation**:  
-  1. **Step 1**: DB初期化と `items` のQuick Capture（Inbox投入）・一覧・ステータス変更。  
-  2. **Step 2**: `projects` と `contexts` の紐づけ、右ペイン（詳細インスペクタ）の自動保存実装。  
-  3. **Step 3**: `attachments`（URL、ローカルパス起動、`Ctrl+V` スクショ保存）の実装。  
-  4. **Step 4**: 週次レビュー（3ステップウィザード）の実装。
+## 7. Implementation Status
+
+初期計画の Step 1〜4（Quick Capture・一覧・ステータス変更 → プロジェクト／コンテキスト・詳細ペイン自動保存 → 添付 → 週次レビュー）は実装済み。以降の追加機能（Smart Add の開始日、Scheduled ビュー、オムニサーチ、ランチャー、時計、バックアップ）の状況と今後の計画は `PLAN.md` を参照・更新する。

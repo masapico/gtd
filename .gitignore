@@ -15,7 +15,7 @@ release.sh
 
 # Application data
 data/
-backup/
+/backup/
 
 
 # Test binary, built with `go test -c`
