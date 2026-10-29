@@ -1,4 +1,4 @@
-# AGENTS.md \- GTD Tool Development Guidelines
+# CLAUDE.md \- GTD Tool Development Guidelines
 
 ## 1\. Project Overview
 
@@ -88,7 +88,7 @@
 
     └── images/             \# Ctrl+Vで保存されたスクリーンショット実体
 
-## 4\. Coding Guidelines for AI Agents
+## 4\. Coding Guidelines
 
 - **htmx Partial Rendering**:  
   - ハンドラは `HX-Request` ヘッダの有無を確認するか、専用エンドポイント（`/views/...`, `/partials/...`）を用意し、必要なHTMLフラグメントのみを返すこと。  
