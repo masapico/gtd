@@ -119,6 +119,21 @@ document.addEventListener('keydown', (e) => {
 
   // Esc: モーダルを閉じる / オムニサーチドロップダウンを閉じる / プロジェクトインライン編集を閉じる / 詳細インスペクタを閉じる / サイドバーを閉じる
   if (e.key === 'Escape') {
+    const shortcutsModal = document.getElementById('shortcuts-modal');
+    if (shortcutsModal && !shortcutsModal.classList.contains('hidden')) {
+      e.preventDefault();
+      closeShortcutsHelp();
+      return;
+    }
+
+    // サイドバーのインライン追加フォームを閉じる
+    const openAddForm = document.activeElement?.closest?.('.sidebar-add-form');
+    if (openAddForm) {
+      e.preventDefault();
+      toggleSidebarAddForm(openAddForm.id, false);
+      return;
+    }
+
     const clockModal = document.getElementById('clock-modal');
     if (clockModal && !clockModal.classList.contains('hidden')) {
       e.preventDefault();
@@ -210,7 +225,97 @@ document.addEventListener('keydown', (e) => {
     focusQuickCapture();
     return;
   }
+
+  // 中央リストの単キー操作（修飾キー付き・入力中・モーダル表示中は無効）
+  if (isInputActive || e.ctrlKey || e.metaKey || e.altKey || isAnyModalOpen()) return;
+  if (handleListShortcut(e.key)) e.preventDefault();
 });
+
+function isAnyModalOpen() {
+  return [...document.querySelectorAll('.modal-overlay')].some(m => !m.classList.contains('hidden'));
+}
+
+// 2-2. リスト操作ショートカット（j/k 移動、Enter/o 詳細、x 完了、1-5 ステータス、? ヘルプ）
+const SHORTCUT_STATUSES = { '1': 'inbox', '2': 'next', '3': 'waiting', '4': 'someday', '5': 'reference' };
+let selectedItemId = null;
+
+function visibleItemCards() {
+  return [...document.querySelectorAll('#main-content-pane .item-card')]
+    .filter(el => el.offsetParent !== null && !el.classList.contains('pending-delete'));
+}
+
+function cardItemId(card) {
+  const m = (card.getAttribute('hx-get') || '').match(/^\/items\/(\d+)\/detail$/);
+  return m ? m[1] : null;
+}
+
+function selectItemCard(card) {
+  document.querySelectorAll('.item-card.selected').forEach(c => c.classList.remove('selected'));
+  if (!card) return;
+  card.classList.add('selected');
+  card.scrollIntoView({ block: 'nearest' });
+  selectedItemId = cardItemId(card);
+}
+
+function handleListShortcut(key) {
+  if (key === '?') {
+    openShortcutsHelp();
+    return true;
+  }
+
+  const cards = visibleItemCards();
+  if (cards.length === 0) return false;
+  const current = cards.findIndex(c => c.classList.contains('selected'));
+  const card = cards[current];
+
+  if (key === 'j' || key === 'k') {
+    const next = current === -1 ? 0 : Math.min(Math.max(current + (key === 'j' ? 1 : -1), 0), cards.length - 1);
+    selectItemCard(cards[next]);
+    return true;
+  }
+  if (!card) return false;
+
+  const id = cardItemId(card);
+  if (key === 'Enter' || key === 'o') {
+    card.click();
+    return true;
+  }
+  if (key === 'x') {
+    const checkbox = card.querySelector('.item-checkbox');
+    if (checkbox) checkbox.click();
+    return true;
+  }
+  if (SHORTCUT_STATUSES[key] && id) {
+    sendItemRequest('PATCH', `/items/${id}/status`, { status: SHORTCUT_STATUSES[key] })
+      .then(() => htmx.trigger(document.body, 'itemDetailRefresh'))
+      .catch(err => showToast(err.message, true));
+    return true;
+  }
+  return false;
+}
+
+// リスト再描画後も、選択していたアイテムのハイライトを復元する
+function restoreSelectedCard() {
+  if (!selectedItemId) return;
+  const card = visibleItemCards().find(c => cardItemId(c) === selectedItemId);
+  if (card) card.classList.add('selected');
+}
+document.addEventListener('htmx:afterSwap', restoreSelectedCard);
+document.addEventListener('htmx:after:swap', restoreSelectedCard);
+document.addEventListener('click', (e) => {
+  const card = e.target.closest?.('#main-content-pane .item-card');
+  if (card) selectedItemId = cardItemId(card);
+});
+
+function openShortcutsHelp() {
+  const modal = document.getElementById('shortcuts-modal');
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeShortcutsHelp() {
+  const modal = document.getElementById('shortcuts-modal');
+  if (modal) modal.classList.add('hidden');
+}
 
 function focusQuickCapture() {
   const input = document.getElementById('quick-capture-input');
@@ -373,6 +478,42 @@ function toggleSidebar() {
   }
 }
 
+// 4-2. サイドバー見出しの「+」からインライン追加フォームを開閉
+function toggleSidebarAddForm(formId, show) {
+  const form = document.getElementById(formId);
+  if (!form) return;
+  const open = show ?? form.classList.contains('hidden');
+  form.classList.toggle('hidden', !open);
+  const toggle = document.querySelector(`[aria-controls="${formId}"]`);
+  if (toggle) toggle.setAttribute('aria-expanded', String(open));
+  if (open) {
+    form.querySelector('input')?.focus();
+  } else {
+    form.reset();
+  }
+}
+
+// 4-3. 中央ペインに表示中のビューに合わせて、サイドバーの現在地ハイライトを付け替える
+function syncActiveNav() {
+  const viewEl = document.querySelector('#main-content-pane [data-view]');
+  const sidebar = document.getElementById('sidebar-pane');
+  if (!viewEl || !sidebar) return;
+
+  const { view, projectId, contextId } = viewEl.dataset;
+  const keys = new Set([view === 'project' && projectId ? `project-${projectId}` : view]);
+  if (contextId) keys.add(`context-${contextId}`);
+
+  sidebar.querySelectorAll('[data-nav]').forEach(el => {
+    const active = keys.has(el.dataset.nav);
+    el.classList.toggle('active', active);
+    if (active) el.setAttribute('aria-current', 'page');
+    else el.removeAttribute('aria-current');
+  });
+}
+document.addEventListener('htmx:afterSwap', syncActiveNav);
+document.addEventListener('htmx:after:swap', syncActiveNav);
+document.addEventListener('DOMContentLoaded', syncActiveNav);
+
 // 5. ローカルパスのクリップボードコピー
 async function copyToClipboard(text, btnElement) {
   try {
@@ -391,25 +532,55 @@ async function copyToClipboard(text, btnElement) {
   }
 }
 
-// 6. トーストメッセージ表示
+// 6. トースト / Snackbar 表示（M3 Snackbar: 任意で「元に戻す」等のアクションボタン付き）
 function showToast(message, isError) {
   if (!message) return;
   message = decodeToastMessage(message);
+  const duration = (message && message.length > 25) || isError ? 5000 : 2500;
+  showSnackbar(message, { isError, duration });
+}
 
+function showSnackbar(message, { actionLabel, onAction, duration = 5000, isError = false } = {}) {
   let toast = document.getElementById('app-toast');
   if (!toast) {
     toast = document.createElement('div');
     toast.id = 'app-toast';
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
     document.body.appendChild(toast);
   }
   toast.className = 'toast-notice' + (isError ? ' toast-error' : '');
-  toast.innerText = message;
+  toast.textContent = '';
+
+  const text = document.createElement('span');
+  text.className = 'toast-text';
+  text.textContent = message;
+  toast.appendChild(text);
+
+  if (actionLabel && onAction) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'toast-action';
+    btn.textContent = actionLabel;
+    btn.onclick = () => {
+      hideSnackbar();
+      onAction();
+    };
+    toast.appendChild(btn);
+  }
+
   toast.style.opacity = '1';
+  toast.style.pointerEvents = 'auto';
   clearTimeout(toast._timeout);
-  const duration = (message && message.length > 25) || isError ? 5000 : 2500;
-  toast._timeout = setTimeout(() => {
-    toast.style.opacity = '0';
-  }, duration);
+  toast._timeout = setTimeout(hideSnackbar, duration);
+}
+
+function hideSnackbar() {
+  const toast = document.getElementById('app-toast');
+  if (!toast) return;
+  clearTimeout(toast._timeout);
+  toast.style.opacity = '0';
+  toast.style.pointerEvents = 'none';
 }
 
 // トーストメッセージのデコード（URLエンコード解除および Latin-1 文字化けの自動修復）
@@ -443,6 +614,127 @@ document.addEventListener('attachmentOpened', () => {
 document.addEventListener('showToast', (e) => {
   const rawMsg = typeof e.detail === 'string' ? e.detail : (e.detail?.value || '完了しました');
   showToast(rawMsg);
+});
+
+// 6-2. ステータス変更・削除の「元に戻す」
+const STATUS_LABELS = {
+  inbox: 'Inbox', next: 'Next Actions', waiting: 'Waiting For',
+  someday: 'Someday', reference: 'Reference', done: 'Done',
+};
+
+// サーバーの変更後に関連ペイン（リスト・サイドバー・詳細・レビュー）を再描画させる
+function refreshAfterUndo() {
+  htmx.trigger(document.body, 'itemDetailRefresh');
+  // 週次レビュー画面のカードは自動再描画されないため、表示中のステップを再取得
+  const activeStep = document.querySelector('.review-container .step-tab.active');
+  if (activeStep) {
+    htmx.ajax('GET', activeStep.getAttribute('hx-get'), { target: '#main-content-pane' });
+  }
+}
+
+async function sendItemRequest(method, url, values) {
+  const opts = { method, headers: { 'HX-Request': 'true' } };
+  if (values) {
+    opts.headers['Content-Type'] = 'application/x-www-form-urlencoded';
+    opts.body = new URLSearchParams(values).toString();
+  }
+  const res = await fetch(url, opts);
+  if (!res.ok) throw new Error((await res.text()) || `リクエストに失敗しました (${res.status})`);
+  dispatchHxTriggerHeader(res.headers.get('HX-Trigger'));
+}
+
+// fetch で送った場合も、htmx と同様に HX-Trigger レスポンスヘッダのイベントを発火する
+function dispatchHxTriggerHeader(header) {
+  if (!header) return;
+  if (header.startsWith('{')) {
+    for (const [name, value] of Object.entries(JSON.parse(header))) {
+      htmx.trigger(document.body, name, typeof value === 'object' ? value : { value });
+    }
+  } else {
+    header.split(',').forEach(name => htmx.trigger(document.body, name.trim()));
+  }
+}
+
+document.addEventListener('itemStatusChanged', (e) => {
+  const d = e.detail || {};
+  if (!d.id) return;
+  const title = d.title ? `「${d.title}」` : '';
+  if (d.recurring) {
+    showSnackbar(`${title}を完了し、次回分を作成しました`);
+    return;
+  }
+  const verb = d.status === 'done' ? 'を完了しました' : `を ${STATUS_LABELS[d.status] || d.status} へ移動しました`;
+  showSnackbar(title + verb, {
+    actionLabel: '元に戻す',
+    onAction: async () => {
+      try {
+        await sendItemRequest('PATCH', `/items/${d.id}/status`, { status: d.prev });
+        refreshAfterUndo();
+      } catch (err) {
+        showToast(err.message, true);
+      }
+    },
+  });
+});
+
+// 削除は即時に送らず、Snackbar の表示中は保留して「元に戻す」で取り消せるようにする
+const pendingDeletes = new Map(); // itemId -> timeoutId
+const DELETE_UNDO_MS = 5000;
+
+function itemElementsFor(itemId) {
+  return document.querySelectorAll(
+    `[hx-get="/items/${itemId}/detail"].item-card, #review-card-${itemId}, #stale-card-${itemId}`
+  );
+}
+
+function hidePendingDeletes() {
+  for (const id of pendingDeletes.keys()) {
+    itemElementsFor(id).forEach(el => el.classList.add('pending-delete'));
+  }
+}
+
+function commitDelete(itemId, { keepalive = false } = {}) {
+  clearTimeout(pendingDeletes.get(itemId));
+  pendingDeletes.delete(itemId);
+  const req = fetch(`/items/${itemId}`, { method: 'DELETE', headers: { 'HX-Request': 'true' }, keepalive });
+  if (keepalive) return;
+  req.then(res => {
+    if (!res.ok) throw new Error('削除に失敗しました');
+    htmx.trigger(document.body, 'itemChanged');
+  }).catch(err => {
+    showToast(err.message, true);
+    itemElementsFor(itemId).forEach(el => el.classList.remove('pending-delete'));
+  });
+}
+
+function deleteItemWithUndo(itemId, title) {
+  itemId = String(itemId);
+  const detailPane = document.getElementById('item-detail-pane');
+  if (detailPane && detailPane.dataset.itemId === itemId) closeDetailPane();
+
+  pendingDeletes.set(itemId, setTimeout(() => commitDelete(itemId), DELETE_UNDO_MS));
+  hidePendingDeletes();
+  handleReviewCardSwapped();
+
+  showSnackbar(`${title ? `「${title}」` : 'アイテム'}を削除しました`, {
+    duration: DELETE_UNDO_MS,
+    actionLabel: '元に戻す',
+    onAction: () => {
+      clearTimeout(pendingDeletes.get(itemId));
+      pendingDeletes.delete(itemId);
+      itemElementsFor(itemId).forEach(el => el.classList.remove('pending-delete'));
+      handleReviewCardSwapped();
+    },
+  });
+}
+
+// 一覧が再描画されても、削除保留中のアイテムは非表示のままにする
+document.addEventListener('htmx:afterSwap', hidePendingDeletes);
+document.addEventListener('htmx:after:swap', hidePendingDeletes);
+
+// ページを離れる場合は保留中の削除を確定させる
+window.addEventListener('pagehide', () => {
+  for (const id of [...pendingDeletes.keys()]) commitDelete(id, { keepalive: true });
 });
 
 // HTMX リクエスト失敗時のエラー通知 (HTMX 4: htmx:response:error, HTMX 1/2: htmx:responseError)
@@ -492,7 +784,7 @@ function handleReviewCardSwapped(e) {
   }
 
   if (step1List) {
-    const remaining = step1List.querySelectorAll('.review-card').length;
+    const remaining = step1List.querySelectorAll('.review-card:not(.pending-delete)').length;
     const countEl = document.getElementById('step1-remaining-count');
     if (countEl) countEl.textContent = remaining;
 
@@ -504,29 +796,27 @@ function handleReviewCardSwapped(e) {
       }
     }
 
-    if (remaining === 0) {
-      const headerEl = document.getElementById('step1-remaining-header');
-      if (headerEl) headerEl.style.display = 'none';
-      const zeroEl = document.getElementById('step1-zero-state');
-      if (zeroEl) zeroEl.style.display = 'block';
-    }
+    // 削除の「元に戻す」で件数が戻る場合もあるため、両方向に切り替える
+    const headerEl = document.getElementById('step1-remaining-header');
+    if (headerEl) headerEl.style.display = remaining === 0 ? 'none' : '';
+    const zeroEl = document.getElementById('step1-zero-state');
+    if (zeroEl) zeroEl.style.display = remaining === 0 ? 'block' : 'none';
   }
 
   if (step3List) {
-    const remaining = step3List.querySelectorAll('.review-card').length;
+    const remaining = step3List.querySelectorAll('.review-card:not(.pending-delete)').length;
     const countEl = document.getElementById('step3-remaining-count');
     if (countEl) countEl.textContent = remaining;
 
-    if (remaining === 0) {
-      const headerEl = document.getElementById('step3-remaining-header');
-      if (headerEl) headerEl.style.display = 'none';
-      const zeroEl = document.getElementById('step3-zero-state');
-      if (zeroEl) zeroEl.style.display = 'block';
-    }
+    // 削除の「元に戻す」で件数が戻る場合もあるため、両方向に切り替える
+    const headerEl = document.getElementById('step3-remaining-header');
+    if (headerEl) headerEl.style.display = remaining === 0 ? 'none' : '';
+    const zeroEl = document.getElementById('step3-zero-state');
+    if (zeroEl) zeroEl.style.display = remaining === 0 ? 'block' : 'none';
   }
 
   if (step2List) {
-    const remaining = step2List.querySelectorAll('.review-card').length;
+    const remaining = step2List.querySelectorAll('.review-card:not(.pending-delete)').length;
     if (remaining === 0 && !document.getElementById('step2-zero-state')) {
       const zeroDiv = document.createElement('div');
       zeroDiv.id = 'step2-zero-state';
@@ -603,6 +893,20 @@ function syncBodyPreview(value) {
     snippetEl.title = '';
     snippetEl.innerText = '+ メモを追加';
   }
+}
+
+// 9-2. 詳細ペインの日付入力（空なら「未設定」表示、クリアボタンで消去して自動保存）
+function syncDateFieldEmpty(input) {
+  const field = input.closest('.date-field');
+  if (field) field.toggleAttribute('data-empty', !input.value);
+}
+
+function clearDateField(inputId) {
+  const input = document.getElementById(inputId);
+  if (!input || !input.value) return;
+  input.value = '';
+  syncDateFieldEmpty(input);
+  input.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
 // 10. モーダルダイアログ制御 (ランチャー管理など)
@@ -1322,6 +1626,8 @@ function initClock() {
     const minutes = String(now.getMinutes()).padStart(2, '0');
 
     dateEl.textContent = `${year}-${month}-${day} ${weekday}`;
+    const clockBtn = document.getElementById('topbar-clock');
+    if (clockBtn) clockBtn.title = `${year}-${month}-${day} ${weekday} — 時計・タイマー・アラーム設定`;
     
     const hoursEl = document.getElementById('clock-hours');
     const minutesEl = document.getElementById('clock-minutes');

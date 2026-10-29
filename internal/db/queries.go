@@ -796,11 +796,10 @@ func CreateContext(db *sql.DB, name string) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	id, err := res.LastInsertId()
-	if err != nil {
+	// INSERT OR IGNORE で無視された場合も LastInsertId は直前の挿入IDを返すため、影響行数で判定する
+	if n, err := res.RowsAffected(); err != nil {
 		return 0, err
-	}
-	if id == 0 {
+	} else if n == 0 {
 		// すでに存在している場合は既存のIDを取得
 		existing, err := GetContextByName(db, name)
 		if err != nil {
@@ -808,7 +807,7 @@ func CreateContext(db *sql.DB, name string) (int64, error) {
 		}
 		return existing.ID, nil
 	}
-	return id, nil
+	return res.LastInsertId()
 }
 
 // GetContextByName は指定された名前のコンテキストを取得します

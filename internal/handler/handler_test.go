@@ -1309,8 +1309,8 @@ func TestStartDateAndScheduledViewRendering(t *testing.T) {
 		t.Fatalf("Get scheduled items failed: %d", rec.Code)
 	}
 	schedHtml := rec.Body.String()
-	if !strings.Contains(schedHtml, "期限・予定") {
-		t.Errorf("expected title '期限・予定', got: %s", schedHtml)
+	if !strings.Contains(schedHtml, "Scheduled") {
+		t.Errorf("expected title 'Scheduled', got: %s", schedHtml)
 	}
 	if !strings.Contains(schedHtml, "未来のタスク") {
 		t.Errorf("expected '未来のタスク' in scheduled view, got: %s", schedHtml)
@@ -1324,8 +1324,8 @@ func TestStartDateAndScheduledViewRendering(t *testing.T) {
 		t.Fatalf("Get sidebar failed: %d", rec.Code)
 	}
 	sidebarHtml := rec.Body.String()
-	if !strings.Contains(sidebarHtml, "期限・予定") {
-		t.Errorf("expected '期限・予定' in sidebar, got: %s", sidebarHtml)
+	if !strings.Contains(sidebarHtml, "Scheduled") {
+		t.Errorf("expected 'Scheduled' in sidebar, got: %s", sidebarHtml)
 	}
 	if !strings.Contains(sidebarHtml, "/partials/items?view=scheduled") {
 		t.Errorf("expected scheduled link in sidebar, got: %s", sidebarHtml)
@@ -1755,8 +1755,8 @@ func TestProjectStatusSectionsAndDetailContext(t *testing.T) {
 	if !strings.Contains(projectHTML, "Waiting For") {
 		t.Errorf("expected 'Waiting For' section in HTML, got:\n%s", projectHTML)
 	}
-	if !strings.Contains(projectHTML, "Someday / Ideas") {
-		t.Errorf("expected 'Someday / Ideas' section in HTML, got:\n%s", projectHTML)
+	if !strings.Contains(projectHTML, "Someday") {
+		t.Errorf("expected 'Someday' section in HTML, got:\n%s", projectHTML)
 	}
 	if !strings.Contains(projectHTML, "完了済み") {
 		t.Errorf("expected '完了済み' section in HTML, got:\n%s", projectHTML)
@@ -1995,3 +1995,73 @@ func TestAttachmentRenameFlow(t *testing.T) {
 	}
 }
 
+
+func TestItemStatusChangeUndoPayload(t *testing.T) {
+	h, mux, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	itemID, err := db.CreateItem(h.DB, &model.Item{Title: "見積を送る", Status: "next"})
+	if err != nil {
+		t.Fatalf("CreateItem failed: %v", err)
+	}
+	recurringID, err := db.CreateItem(h.DB, &model.Item{Title: "週報", Status: "next", Recurrence: "weekly"})
+	if err != nil {
+		t.Fatalf("CreateItem failed: %v", err)
+	}
+
+	patch := func(id int64, status string) string {
+		form := url.Values{}
+		form.Set("status", status)
+		req := httptest.NewRequest("PATCH", fmt.Sprintf("/items/%d/status", id), strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", rec.Code)
+		}
+		return rec.Header().Get("HX-Trigger")
+	}
+
+	trigger := patch(itemID, "done")
+	for _, want := range []string{`"itemChanged":true`, `"itemStatusChanged"`, `"prev":"next"`, `"status":"done"`, `"recurring":false`} {
+		if !strings.Contains(trigger, want) {
+			t.Errorf("expected HX-Trigger to contain %s, got %q", want, trigger)
+		}
+	}
+	// 日本語タイトルはヘッダーの文字化けを防ぐため \uXXXX でエスケープされる
+	if !strings.Contains(trigger, `\u898b\u7a4d`) {
+		t.Errorf("expected non-ASCII title to be \\u-escaped, got %q", trigger)
+	}
+
+	if trigger := patch(itemID, "done"); strings.Contains(trigger, "itemStatusChanged") {
+		t.Errorf("expected no itemStatusChanged when status is unchanged, got %q", trigger)
+	}
+
+	if trigger := patch(recurringID, "done"); !strings.Contains(trigger, `"recurring":true`) {
+		t.Errorf("expected recurring flag for recurring item, got %q", trigger)
+	}
+}
+
+func TestCreateItemCaptureToast(t *testing.T) {
+	_, mux, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	form := url.Values{}
+	form.Set("title", "資料作成 #PC ^2026-10-31")
+	req := httptest.NewRequest("POST", "/items", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", rec.Code)
+	}
+	trigger := rec.Header().Get("HX-Trigger")
+	if !strings.Contains(trigger, `"itemChanged":true`) || !strings.Contains(trigger, `"contextChanged":true`) {
+		t.Errorf("expected itemChanged and contextChanged in HX-Trigger, got %q", trigger)
+	}
+	want := url.QueryEscape("Inbox に追加: 資料作成 · #PC · 期日 10/31")
+	if !strings.Contains(trigger, want) {
+		t.Errorf("expected toast %q in HX-Trigger, got %q", want, trigger)
+	}
+}

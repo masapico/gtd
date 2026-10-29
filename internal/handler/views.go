@@ -127,7 +127,7 @@ func (h *Handler) buildItemListData(view string, pID *int64, cID *int64, search 
 		title = "Next Actions"
 		description = "今すぐ、または次に実行可能な具体的行動。"
 	case "scheduled":
-		title = "期限・予定"
+		title = "Scheduled"
 		description = "期日があるタスクおよび指定日待ちの行動を時系列で把握します。"
 
 		now := time.Now().In(time.Local)
@@ -216,7 +216,7 @@ func (h *Handler) buildItemListData(view string, pID *int64, cID *int64, search 
 		title = "Someday"
 		description = "いつかやりたいこと、将来のアイデア、保留項目。"
 	case "reference":
-		title = "References"
+		title = "Reference"
 		description = "行動を伴わない資料・メモ・保管情報。"
 	case "done":
 		title = "Done"
@@ -362,7 +362,7 @@ func (h *Handler) buildItemListData(view string, pID *int64, cID *int64, search 
 		if itemStatusFilter == "" || itemStatusFilter == "all" || itemStatusFilter == "someday" {
 			projectSections = append(projectSections, model.ProjectSection{
 				ID:             "someday",
-				Title:          "Someday / Ideas",
+				Title:          "Someday",
 				Icon:           "someday",
 				BadgeClass:     "badge-someday",
 				Items:          somedayItems,
@@ -376,7 +376,7 @@ func (h *Handler) buildItemListData(view string, pID *int64, cID *int64, search 
 		if (len(referenceItems) > 0 || itemStatusFilter == "reference") && (itemStatusFilter == "" || itemStatusFilter == "all" || itemStatusFilter == "reference") {
 			projectSections = append(projectSections, model.ProjectSection{
 				ID:             "reference",
-				Title:          "References (資料・メモ)",
+				Title:          "Reference",
 				Icon:           "reference",
 				BadgeClass:     "badge-reference",
 				Items:          referenceItems,

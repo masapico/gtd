@@ -14,10 +14,9 @@
     <div class="detail-header-actions">
       <!-- Delete Button -->
       <button class="icon-btn danger" 
-              hx-delete="/items/{{.Item.ID}}" 
-              hx-confirm="このアイテムを完全に削除しますか？" 
-              hx-swap="none" 
-              onclick="closeDetailPane()" 
+              type="button"
+              onclick="deleteItemWithUndo('{{.Item.ID}}', this.dataset.title)" 
+              data-title="{{.Item.Title}}"
               title="削除">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
           <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
@@ -74,8 +73,8 @@
         </svg>
         <span>Status</span>
       </label>
-      <div class="status-selector">
-        <button type="button" class="status-btn {{if eq .Item.Status "inbox"}}active{{end}}" 
+      <div class="status-selector" role="group" aria-label="ステータス">
+        <button type="button" class="status-btn {{if eq .Item.Status "inbox"}}active{{end}}" aria-pressed="{{if eq .Item.Status "inbox"}}true{{else}}false{{end}}" 
                 hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "inbox"}'
                 hx-target="#item-detail-pane" hx-swap="innerHTML">
           <svg class="nav-icon" viewBox="0 0 24 24">
@@ -83,7 +82,7 @@
           </svg>
           <span>Inbox</span>
         </button>
-        <button type="button" class="status-btn {{if eq .Item.Status "next"}}active{{end}}" 
+        <button type="button" class="status-btn {{if eq .Item.Status "next"}}active{{end}}" aria-pressed="{{if eq .Item.Status "next"}}true{{else}}false{{end}}" 
                 hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "next"}'
                 hx-target="#item-detail-pane" hx-swap="innerHTML">
           <svg class="nav-icon" viewBox="0 0 24 24">
@@ -91,7 +90,7 @@
           </svg>
           <span>Next</span>
         </button>
-        <button type="button" class="status-btn {{if eq .Item.Status "waiting"}}active{{end}}" 
+        <button type="button" class="status-btn {{if eq .Item.Status "waiting"}}active{{end}}" aria-pressed="{{if eq .Item.Status "waiting"}}true{{else}}false{{end}}" 
                 hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "waiting"}'
                 hx-target="#item-detail-pane" hx-swap="innerHTML">
           <svg class="nav-icon" viewBox="0 0 24 24">
@@ -99,7 +98,7 @@
           </svg>
           <span>Waiting</span>
         </button>
-        <button type="button" class="status-btn {{if eq .Item.Status "someday"}}active{{end}}" 
+        <button type="button" class="status-btn {{if eq .Item.Status "someday"}}active{{end}}" aria-pressed="{{if eq .Item.Status "someday"}}true{{else}}false{{end}}" 
                 hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "someday"}'
                 hx-target="#item-detail-pane" hx-swap="innerHTML">
           <svg class="nav-icon" viewBox="0 0 24 24">
@@ -107,23 +106,38 @@
           </svg>
           <span>Someday</span>
         </button>
-        <button type="button" class="status-btn {{if eq .Item.Status "reference"}}active{{end}}" 
+        <button type="button" class="status-btn {{if eq .Item.Status "reference"}}active{{end}}" aria-pressed="{{if eq .Item.Status "reference"}}true{{else}}false{{end}}" 
                 hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "reference"}'
                 hx-target="#item-detail-pane" hx-swap="innerHTML">
           <svg class="nav-icon" viewBox="0 0 24 24">
             <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/>
           </svg>
-          <span>Reference</span>
-        </button>
-        <button type="button" class="status-btn {{if eq .Item.Status "done"}}active{{end}}" 
-                hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "done"}'
-                hx-target="#item-detail-pane" hx-swap="innerHTML">
-          <svg class="nav-icon" viewBox="0 0 24 24">
-            <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/>
-          </svg>
-          <span>Done</span>
+          <span>Ref</span>
         </button>
       </div>
+
+      <!-- 完了は最も頻繁な終着点なので、他ステータスと分けて主要アクションとして配置 -->
+      {{if eq .Item.Status "done"}}
+        <button type="button" class="detail-done-btn is-done"
+                hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "next"}'
+                hx-target="#item-detail-pane" hx-swap="innerHTML"
+                title="未完了 (Next) に戻す">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+            <path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/>
+          </svg>
+          <span>完了済み — 未完了に戻す</span>
+        </button>
+      {{else}}
+        <button type="button" class="detail-done-btn"
+                hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "done"}'
+                hx-target="#item-detail-pane" hx-swap="innerHTML"
+                title="完了にする (x)">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+            <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/>
+          </svg>
+          <span>完了にする</span>
+        </button>
+      {{end}}
     </div>
 
     <!-- Auto-saving Item Detail Form -->
@@ -169,7 +183,13 @@
             <span>開始日</span>
             <span style="font-size: 0.7rem; color: var(--md-sys-color-outline); font-weight: normal;">(~開始)</span>
           </label>
-          <input id="detail-start" name="start_date" class="form-input" type="date" value="{{formatShortDate .Item.StartDate}}">
+          <div class="date-field" {{if not (formatShortDate .Item.StartDate)}}data-empty{{end}}>
+            <input id="detail-start" name="start_date" class="form-input" type="date" value="{{formatShortDate .Item.StartDate}}" oninput="syncDateFieldEmpty(this)">
+            <span class="date-empty-label" aria-hidden="true">未設定</span>
+            <button type="button" class="date-clear-btn" onclick="clearDateField('detail-start')" title="クリア" aria-label="日付をクリア">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+          </div>
         </div>
         <div class="form-group">
           <label class="form-label" for="detail-due">
@@ -179,7 +199,13 @@
             <span>期日</span>
             <span style="font-size: 0.7rem; color: var(--md-sys-color-outline); font-weight: normal;">(^締切)</span>
           </label>
-          <input id="detail-due" name="due_date" class="form-input" type="date" value="{{formatShortDate .Item.DueDate}}">
+          <div class="date-field" {{if not (formatShortDate .Item.DueDate)}}data-empty{{end}}>
+            <input id="detail-due" name="due_date" class="form-input" type="date" value="{{formatShortDate .Item.DueDate}}" oninput="syncDateFieldEmpty(this)">
+            <span class="date-empty-label" aria-hidden="true">未設定</span>
+            <button type="button" class="date-clear-btn" onclick="clearDateField('detail-due')" title="クリア" aria-label="日付をクリア">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -192,24 +218,27 @@
         </div>
       {{end}}
 
-      <!-- Recurrence -->
-      <div class="form-group">
-        <label class="form-label" for="detail-recurrence">
+      <!-- Recurrence（使用頻度が低いので折りたたむ。設定済みなら展開） -->
+      <details class="detail-options" {{if ne .Item.Recurrence "none"}}open{{end}}>
+        <summary class="detail-options-summary">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
             <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
           </svg>
           <span>繰り返し</span>
-          <span style="font-size: 0.72rem; color: var(--md-sys-color-outline); font-weight: normal;">(リピート)</span>
-        </label>
-        <select id="detail-recurrence" name="recurrence" class="form-select">
-          <option value="none" {{if eq .Item.Recurrence "none"}}selected{{end}}>なし</option>
-          <option value="daily" {{if eq .Item.Recurrence "daily"}}selected{{end}}>毎日</option>
-          <option value="weekdays" {{if eq .Item.Recurrence "weekdays"}}selected{{end}}>平日 (月〜金)</option>
-          <option value="weekly" {{if eq .Item.Recurrence "weekly"}}selected{{end}}>毎週</option>
-          <option value="monthly" {{if eq .Item.Recurrence "monthly"}}selected{{end}}>毎月</option>
-          <option value="yearly" {{if eq .Item.Recurrence "yearly"}}selected{{end}}>毎年</option>
-        </select>
-      </div>
+          <span class="detail-options-value">{{if ne .Item.Recurrence "none"}}{{.Item.RecurrenceLabel}}{{else}}なし{{end}}</span>
+        </summary>
+        <div class="form-group detail-options-body">
+          <select id="detail-recurrence" name="recurrence" class="form-select"
+                  onchange="this.closest('details').querySelector('.detail-options-value').textContent = this.selectedOptions[0].text">
+            <option value="none" {{if eq .Item.Recurrence "none"}}selected{{end}}>なし</option>
+            <option value="daily" {{if eq .Item.Recurrence "daily"}}selected{{end}}>毎日</option>
+            <option value="weekdays" {{if eq .Item.Recurrence "weekdays"}}selected{{end}}>平日 (月〜金)</option>
+            <option value="weekly" {{if eq .Item.Recurrence "weekly"}}selected{{end}}>毎週</option>
+            <option value="monthly" {{if eq .Item.Recurrence "monthly"}}selected{{end}}>毎月</option>
+            <option value="yearly" {{if eq .Item.Recurrence "yearly"}}selected{{end}}>毎年</option>
+          </select>
+        </div>
+      </details>
 
       <!-- Body / Note (Collapsible by default) -->
       <div class="form-group">

@@ -1,4 +1,5 @@
 <div id="items-view-container" class="items-view-container"
+     data-view="{{.View}}"{{if .CurrentProject}} data-project-id="{{.CurrentProject.ID}}"{{end}}{{if .CurrentContext}} data-context-id="{{.CurrentContext.ID}}"{{end}}
      hx-get="/partials/items?view={{.View}}{{if .CurrentProject}}&project_id={{.CurrentProject.ID}}{{end}}{{if .CurrentContext}}&context_id={{.CurrentContext.ID}}{{end}}{{if .ProjectStatus}}&project_status={{.ProjectStatus}}{{end}}{{if .ItemStatusFilter}}&item_status={{.ItemStatusFilter}}{{end}}{{if .Search}}&search={{.Search}}{{end}}"
      hx-trigger="itemChanged from:document, listRefresh from:document, contextChanged from:document, projectChanged from:document"
      hx-swap="outerHTML">
@@ -1002,8 +1003,10 @@
           <div class="item-main-info">
             <div class="item-title">{{.Title}}</div>
             <div class="item-metadata">
-              <!-- ステータスバッジ -->
-              <span class="meta-tag tag-status {{.StatusBadgeClass}}">{{.StatusLabel}}</span>
+              <!-- ステータスバッジ（現在のビューと同じステータスなら冗長なので省略） -->
+              {{if ne .Status $.View}}
+                <span class="meta-tag tag-status {{.StatusBadgeClass}}">{{.StatusLabel}}</span>
+              {{end}}
 
               <!-- 繰り返し設定バッジ -->
               {{if ne .Recurrence "none"}}

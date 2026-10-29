@@ -12,9 +12,9 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
   <meta name="theme-color" content="#00639b">
 
-  <link rel="stylesheet" href="/static/style.css?v=19">
+  <link rel="stylesheet" href="/static/style.css?v=20">
   <script src="/static/htmx.min.js"></script>
-  <script src="/static/app.js?v=19"></script>
+  <script src="/static/app.js?v=20"></script>
 </head>
 <body hx-ext="morph">
 
@@ -46,11 +46,14 @@
             name="title" 
             class="quick-capture-input" 
             type="text" 
-            placeholder="Ctrl+i: タスク名 #タグ ^期日 (例: 資料作成 #30分 ^today|^金)" 
-            title="スマート記法対応: #タグ名 でContext付与、^today / ^tomorrow / ^金 / ^日付 で期日指定"
+            placeholder="Ctrl+I  タスクを追加  #文脈  ^期日  ~開始" 
+            aria-describedby="quick-capture-hint"
             autocomplete="off" 
             required
           >
+        </div>
+        <div id="quick-capture-hint" class="quick-capture-hint">
+          <code>#PC</code> Context ・ <code>^today</code> <code>^金</code> <code>^10/31</code> <code>^+3d</code> 期日 ・ <code>~月</code> 開始日 ・ Enter で Inbox へ
         </div>
       </form>
 
@@ -88,6 +91,13 @@
     </div>
 
     <div class="topbar-right">
+      <!-- Keyboard Shortcuts Help -->
+      <button type="button" class="topbar-icon-btn" onclick="openShortcutsHelp()" title="キーボードショートカット (?)" aria-label="キーボードショートカット">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+          <path d="M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z"/>
+        </svg>
+      </button>
+
       <!-- Launcher Modal Trigger Button -->
       <button type="button" 
               class="topbar-btn topbar-launcher-btn" 
@@ -350,6 +360,41 @@
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Keyboard Shortcuts Modal -->
+  <div id="shortcuts-modal" class="modal-overlay hidden" tabindex="-1" onclick="if(event.target === this) closeShortcutsHelp();">
+    <div class="modal-dialog shortcuts-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="shortcuts-modal-title" onclick="event.stopPropagation();">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="modal-title-row">
+            <h2 class="modal-title" id="shortcuts-modal-title">キーボードショートカット</h2>
+          </div>
+        </div>
+        <button type="button" class="modal-close-btn" onclick="closeShortcutsHelp()" title="閉じる (Esc)" aria-label="閉じる">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <table class="shortcuts-table">
+          <tr><th colspan="2">全体</th></tr>
+          <tr><td><kbd>Ctrl</kbd> + <kbd>I</kbd> / <kbd>/</kbd></td><td>Quick Capture</td></tr>
+          <tr><td><kbd>Ctrl</kbd> + <kbd>F</kbd></td><td>検索</td></tr>
+          <tr><td><kbd>Ctrl</kbd> + <kbd>L</kbd></td><td>ランチャー</td></tr>
+          <tr><td><kbd>Esc</kbd></td><td>閉じる</td></tr>
+          <tr><td><kbd>?</kbd></td><td>このヘルプ</td></tr>
+          <tr><th colspan="2">リスト</th></tr>
+          <tr><td><kbd>j</kbd> / <kbd>k</kbd></td><td>次 / 前のアイテムを選択</td></tr>
+          <tr><td><kbd>Enter</kbd> / <kbd>o</kbd></td><td>詳細を開く</td></tr>
+          <tr><td><kbd>x</kbd></td><td>完了 / 未完了</td></tr>
+          <tr><td><kbd>1</kbd> – <kbd>5</kbd></td><td>Inbox / Next / Waiting / Someday / Reference へ移動</td></tr>
+          <tr><th colspan="2">詳細ペイン</th></tr>
+          <tr><td><kbd>Ctrl</kbd> + <kbd>V</kbd></td><td>スクリーンショットを貼り付け</td></tr>
+        </table>
       </div>
     </div>
   </div>

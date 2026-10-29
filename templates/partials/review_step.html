@@ -1,4 +1,4 @@
-<div class="review-container">
+<div class="review-container" data-view="review">
   <!-- Stepper Tabs -->
   <div class="review-stepper">
     <a class="step-tab {{if eq .Step 1}}active{{end}}" hx-get="/review/step/1" hx-target="#main-content-pane" style="cursor: pointer;">
@@ -82,10 +82,8 @@
                       hx-target="#review-card-{{.ID}}" hx-swap="delete">
                 Done
               </button>
-              <button class="btn-small" 
-                      hx-delete="/items/{{.ID}}" 
-                      hx-target="#review-card-{{.ID}}" hx-swap="delete" 
-                      hx-confirm="このアイテムを完全に削除しますか？"
+              <button class="btn-small" type="button"
+                      onclick="deleteItemWithUndo('{{.ID}}', this.dataset.title)" data-title="{{.Title}}"
                       style="color: var(--md-sys-color-error);">
                 削除
               </button>
@@ -196,10 +194,8 @@
                         hx-target="#stale-card-{{.ID}}" hx-swap="delete">
                   完了
                 </button>
-                <button class="btn-small" 
-                        hx-delete="/items/{{.ID}}" 
-                        hx-target="#stale-card-{{.ID}}" hx-swap="delete" 
-                        hx-confirm="このアイテムを完全に削除しますか？"
+                <button class="btn-small" type="button"
+                        onclick="deleteItemWithUndo('{{.ID}}', this.dataset.title)" data-title="{{.Title}}"
                         style="color: var(--md-sys-color-error);">
                   削除
                 </button>

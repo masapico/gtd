@@ -607,3 +607,24 @@ func TestUpdateAttachmentLabel(t *testing.T) {
 }
 
 
+
+func TestFindOrCreateContextReturnsExisting(t *testing.T) {
+	dbPath := setupTestDB(t)
+	db, err := InitDB(dbPath)
+	if err != nil {
+		t.Fatalf("InitDB failed: %v", err)
+	}
+	defer db.Close()
+
+	// 直前に別のコンテキストを挿入しても、既存名の検索結果がそのIDに化けないこと
+	if _, err := CreateContext(db, "#新規"); err != nil {
+		t.Fatalf("CreateContext failed: %v", err)
+	}
+	c, err := FindOrCreateContext(db, "#PC")
+	if err != nil {
+		t.Fatalf("FindOrCreateContext failed: %v", err)
+	}
+	if c.Name != "#PC" {
+		t.Errorf("expected existing context #PC, got %q", c.Name)
+	}
+}

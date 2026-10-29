@@ -9,8 +9,10 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
+	"unicode/utf16"
 )
 
 // Handler はアプリケーション全体のハンドラおよび依存関係を保持します
@@ -51,6 +53,33 @@ func (h *Handler) Trigger(w http.ResponseWriter, events ...string) {
 func (h *Handler) TriggerToast(w http.ResponseWriter, message string) {
 	payload := fmt.Sprintf(`{"showToast": "%s"}`, url.QueryEscape(message))
 	w.Header().Set("HX-Trigger", payload)
+}
+
+// TriggerJSON は詳細データ付きのイベント群を HX-Trigger に設定します
+// （非ASCII文字は \uXXXX にエスケープし、HTTPヘッダー経由の文字化けを防ぐ）
+func (h *Handler) TriggerJSON(w http.ResponseWriter, events map[string]any) {
+	data, err := json.Marshal(events)
+	if err != nil {
+		return
+	}
+	w.Header().Set("HX-Trigger", asciiJSON(string(data)))
+}
+
+// asciiJSON は JSON 文字列中の非ASCII文字を \uXXXX 形式（サロゲートペア対応）に置換します
+func asciiJSON(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r < 0x80 {
+			b.WriteRune(r)
+			continue
+		}
+		for _, u := range utf16.Encode([]rune{r}) {
+			b.WriteString(`\u`)
+			hex := strconv.FormatUint(uint64(u), 16)
+			b.WriteString(strings.Repeat("0", 4-len(hex)) + hex)
+		}
+	}
+	return b.String()
 }
 
 // Render は指定されたテンプレートを描画します

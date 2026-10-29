@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -99,9 +100,37 @@ func (h *Handler) CreateItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 画面全体の各ペインへ再読み込みイベントを発火
-	h.Trigger(w, "itemChanged", "contextChanged")
+	// 画面全体の各ペインへ再読み込みイベントを発火し、Smart Add の解釈結果をトーストで通知
+	h.TriggerJSON(w, map[string]any{
+		"itemChanged":    true,
+		"contextChanged": true,
+		"showToast":      url.QueryEscape(captureToastMessage(item)),
+	})
 	w.WriteHeader(http.StatusOK)
+}
+
+// captureToastMessage は登録結果（ステータス・タイトル・Context・日付）を1行の通知文にまとめます
+func captureToastMessage(item *model.Item) string {
+	parts := []string{item.StatusLabel() + " に追加: " + item.Title}
+	for _, c := range item.Contexts {
+		parts = append(parts, c.Name)
+	}
+	if d := item.FormattedDueDate(); d != "" {
+		parts = append(parts, "期日 "+monthDay(d))
+	}
+	if d := item.FormattedStartDate(); d != "" {
+		parts = append(parts, "開始 "+monthDay(d))
+	}
+	return strings.Join(parts, " · ")
+}
+
+// monthDay は YYYY-MM-DD を M/D 表記に変換します（解析できない場合はそのまま返す）
+func monthDay(date string) string {
+	t, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		return date
+	}
+	return t.Format("1/2")
 }
 
 // GetItemDetail は右ペイン（インスペクタ）にアイテムの詳細情報を描画します
@@ -245,13 +274,30 @@ func (h *Handler) UpdateItemStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	prev, err := db.GetItemByID(h.DB, id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
 	_, err = db.UpdateItemStatus(h.DB, id, newStatus)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	h.Trigger(w, "itemChanged")
+	events := map[string]any{"itemChanged": true}
+	if prev.Status != newStatus {
+		// クライアント側の「元に戻す」Snackbar 用に変更前ステータスを通知
+		events["itemStatusChanged"] = map[string]any{
+			"id":        id,
+			"title":     prev.Title,
+			"prev":      prev.Status,
+			"status":    newStatus,
+			"recurring": newStatus == "done" && prev.Recurrence != "" && prev.Recurrence != "none",
+		}
+	}
+	h.TriggerJSON(w, events)
 	// 詳細ペインを最新データで再描画
 	h.GetItemDetail(w, r)
 }
