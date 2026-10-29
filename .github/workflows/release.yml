@@ -1,0 +1,38 @@
+name: Release
+
+# v1.0.0 のようなタグを push すると、全プラットフォーム向け zip を作成して GitHub Release に添付する
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Test
+        run: go test ./...
+
+      # ローカルと同じ cmd/release でクロスビルド（CGO_ENABLED=0）し dist/ に zip と checksums.txt を出力
+      - name: Build release archives
+        run: go run ./cmd/release -version "${GITHUB_REF_NAME}"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" dist/*.zip dist/checksums.txt \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            $([[ "${GITHUB_REF_NAME}" == *-* ]] && echo --prerelease)

@@ -1,5 +1,8 @@
 # GTD (Getting Things Done) タスク管理ツール
 
+[![Release](https://github.com/masapico/gtd/actions/workflows/release.yml/badge.svg)](https://github.com/masapico/gtd/actions/workflows/release.yml)
+[![Latest Release](https://img.shields.io/github/v/release/masapico/gtd)](https://github.com/masapico/gtd/releases/latest)
+
 シングルバイナリ・**完全な個人向け**GTDタスク・情報管理ツールです。
 
 Goで描かれたGTDサーバーが、WebUIを提供します。
@@ -100,4 +103,11 @@ go run ./cmd/release -version v1.0.0
 特定OSやアーキテクチャのみビルドしたい場合は `-os` / `-arch` オプションが利用可能です：
 ```bash
 ./release -version v1.0.0 -os windows -arch amd64
+```
+
+### GitHub Actions による自動リリース
+`v1.0.0` のようなタグを push すると、[release ワークフロー](.github/workflows/release.yml) がテスト → 全プラットフォーム向けビルドを行い、zip と `checksums.txt` を添付した GitHub Release を自動作成します（`v1.1.0-rc1` のようにハイフンを含むタグはプレリリース扱い）。
+```bash
+git tag v1.0.0
+git push origin v1.0.0
 ```
