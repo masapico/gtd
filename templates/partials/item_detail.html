@@ -38,7 +38,7 @@
       <span class="detail-status-pill {{.Item.StatusBadgeClass}}">{{.Item.StatusLabel}}</span>
       {{if .Item.ProjectName}}
         <a class="detail-project-crumb" 
-           hx-get="/partials/items?project_id={{derefInt64 .Item.ProjectID}}" 
+           href="/?project_id={{derefInt64 .Item.ProjectID}}" hx-get="/partials/items?project_id={{derefInt64 .Item.ProjectID}}" 
            hx-target="#main-content-pane" 
            title="中央ペインでこのプロジェクトを開く">
           <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">

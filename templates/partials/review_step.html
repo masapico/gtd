@@ -1,17 +1,17 @@
 <div class="review-container" data-view="review">
   <!-- Stepper Tabs -->
   <div class="review-stepper">
-    <a class="step-tab {{if eq .Step 1}}active{{end}}" hx-get="/review/step/1" hx-target="#main-content-pane" style="cursor: pointer;">
+    <a class="step-tab {{if eq .Step 1}}active{{end}}" href="/?view=review&step=1" hx-get="/review/step/1" hx-target="#main-content-pane" style="cursor: pointer;">
       <span>1. Get Clear</span>
       <span id="step1-tab-badge" class="badge {{if gt .Counts.Inbox 0}}badge-alert{{end}}">{{.Counts.Inbox}}</span>
     </a>
-    <a class="step-tab {{if eq .Step 2}}active{{end}}" hx-get="/review/step/2" hx-target="#main-content-pane" style="cursor: pointer;">
+    <a class="step-tab {{if eq .Step 2}}active{{end}}" href="/?view=review&step=2" hx-get="/review/step/2" hx-target="#main-content-pane" style="cursor: pointer;">
       <span>2. Get Current</span>
       {{if gt .Counts.StalledProjects 0}}
         <span class="badge badge-alert">警告 {{.Counts.StalledProjects}}</span>
       {{end}}
     </a>
-    <a class="step-tab {{if eq .Step 3}}active{{end}}" hx-get="/review/step/3" hx-target="#main-content-pane" style="cursor: pointer;">
+    <a class="step-tab {{if eq .Step 3}}active{{end}}" href="/?view=review&step=3" hx-get="/review/step/3" hx-target="#main-content-pane" style="cursor: pointer;">
       <span>3. Get Creative</span>
     </a>
   </div>

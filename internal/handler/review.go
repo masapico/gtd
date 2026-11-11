@@ -25,7 +25,13 @@ func (h *Handler) StartReview(w http.ResponseWriter, r *http.Request) {
 
 // ReviewStep は指定されたステップのレビュー画面を描画します
 func (h *Handler) ReviewStep(w http.ResponseWriter, r *http.Request) {
-	stepStr := r.PathValue("step")
+	data := h.buildReviewData(r.PathValue("step"))
+	h.PushURL(w, r, "/?view=review&step="+strconv.Itoa(data.Step))
+	h.Render(w, "review_step.html", data)
+}
+
+// buildReviewData は指定ステップ（不正な値は 1 扱い）のレビュー画面データを組み立てます
+func (h *Handler) buildReviewData(stepStr string) ReviewData {
 	step, err := strconv.Atoi(stepStr)
 	if err != nil || step < 1 || step > 3 {
 		step = 1
@@ -49,7 +55,7 @@ func (h *Handler) ReviewStep(w http.ResponseWriter, r *http.Request) {
 		data.StaleItems = staleItems
 	}
 
-	h.Render(w, "review_step.html", data)
+	return data
 }
 
 // MarkProjectReviewed はプロジェクトの点検完了を記録し、更新されたプロジェクトカードを返します

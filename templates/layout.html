@@ -12,9 +12,12 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
   <meta name="theme-color" content="#00639b">
 
-  <link rel="stylesheet" href="/static/style.css?v=20">
+  <!-- 「戻る / 進む」は部分差し替えではなくページ再読み込みで復元する（JS 側の状態と確実に揃えるため） -->
+  <meta name="htmx-config" content='{"history":"reload"}'>
+
+  <link rel="stylesheet" href="/static/style.css?v=21">
   <script src="/static/htmx.min.js"></script>
-  <script src="/static/app.js?v=20"></script>
+  <script src="/static/app.js?v=21"></script>
 </head>
 <body hx-ext="morph">
 
@@ -177,7 +180,7 @@
 
     <!-- Center Pane: Main Content List or Review Wizard -->
     <main id="main-content-pane" class="main-content-pane">
-      {{template "item_list.html" .ItemList}}
+      {{if .Review}}{{template "review_step.html" .Review}}{{else}}{{template "item_list.html" .ItemList}}{{end}}
     </main>
 
     <!-- Right Pane: Side Sheet / Detail Inspector -->
@@ -387,6 +390,10 @@
           <tr><td><kbd>Ctrl</kbd> + <kbd>L</kbd></td><td>ランチャー</td></tr>
           <tr><td><kbd>Esc</kbd></td><td>閉じる</td></tr>
           <tr><td><kbd>?</kbd></td><td>このヘルプ</td></tr>
+          <tr><th colspan="2">ビュー移動（<kbd>g</kbd> に続けて）</th></tr>
+          <tr><td><kbd>g</kbd> <kbd>i</kbd> / <kbd>n</kbd> / <kbd>s</kbd> / <kbd>w</kbd></td><td>Inbox / Next Actions / Scheduled / Waiting For</td></tr>
+          <tr><td><kbd>g</kbd> <kbd>m</kbd> / <kbd>f</kbd> / <kbd>d</kbd></td><td>Someday / Reference / Done</td></tr>
+          <tr><td><kbd>g</kbd> <kbd>r</kbd> / <kbd>p</kbd></td><td>Weekly Review / Projects</td></tr>
           <tr><th colspan="2">リスト</th></tr>
           <tr><td><kbd>j</kbd> / <kbd>k</kbd></td><td>次 / 前のアイテムを選択</td></tr>
           <tr><td><kbd>Enter</kbd> / <kbd>o</kbd></td><td>詳細を開く</td></tr>

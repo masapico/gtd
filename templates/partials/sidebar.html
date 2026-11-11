@@ -4,7 +4,7 @@
 
   <a class="nav-item {{if eq .Counts.Inbox 0}}{{else}}has-unread{{end}}" 
      data-nav="inbox"
-     hx-get="/partials/items?view=inbox" 
+     href="/?view=inbox" hx-get="/partials/items?view=inbox" 
      hx-target="#main-content-pane" 
      onclick="closeDetailPane()">
     <svg class="nav-icon" viewBox="0 0 24 24">
@@ -20,7 +20,7 @@
 
   <a class="nav-item" 
      data-nav="next"
-     hx-get="/partials/items?view=next" 
+     href="/?view=next" hx-get="/partials/items?view=next" 
      hx-target="#main-content-pane" 
      onclick="closeDetailPane()">
     <svg class="nav-icon" viewBox="0 0 24 24">
@@ -32,7 +32,7 @@
 
   <a class="nav-item" 
      data-nav="scheduled"
-     hx-get="/partials/items?view=scheduled" 
+     href="/?view=scheduled" hx-get="/partials/items?view=scheduled" 
      hx-target="#main-content-pane" 
      onclick="closeDetailPane()">
     <svg class="nav-icon" viewBox="0 0 24 24">
@@ -50,7 +50,7 @@
 
   <a class="nav-item" 
      data-nav="waiting"
-     hx-get="/partials/items?view=waiting" 
+     href="/?view=waiting" hx-get="/partials/items?view=waiting" 
      hx-target="#main-content-pane" 
      onclick="closeDetailPane()">
     <svg class="nav-icon" viewBox="0 0 24 24">
@@ -62,7 +62,7 @@
 
   <a class="nav-item" 
      data-nav="someday"
-     hx-get="/partials/items?view=someday" 
+     href="/?view=someday" hx-get="/partials/items?view=someday" 
      hx-target="#main-content-pane" 
      onclick="closeDetailPane()">
     <svg class="nav-icon" viewBox="0 0 24 24">
@@ -74,7 +74,7 @@
 
   <a class="nav-item" 
      data-nav="reference"
-     hx-get="/partials/items?view=reference" 
+     href="/?view=reference" hx-get="/partials/items?view=reference" 
      hx-target="#main-content-pane" 
      onclick="closeDetailPane()">
     <svg class="nav-icon" viewBox="0 0 24 24">
@@ -86,7 +86,7 @@
 
   <a class="nav-item nav-review-item" 
      data-nav="review"
-     hx-get="/review/step/1" 
+     href="/?view=review&step=1" hx-get="/review/step/1" 
      hx-target="#main-content-pane" 
      onclick="closeDetailPane()">
     <svg class="nav-icon" viewBox="0 0 24 24">
@@ -102,7 +102,7 @@
 
   <a class="nav-item" 
      data-nav="done"
-     hx-get="/partials/items?view=done" 
+     href="/?view=done" hx-get="/partials/items?view=done" 
      hx-target="#main-content-pane" 
      onclick="closeDetailPane()">
     <svg class="nav-icon" viewBox="0 0 24 24">
@@ -120,7 +120,7 @@
   <div class="sidebar-section-title">
     <span hx-get="/partials/items?view=contexts" hx-target="#main-content-pane" style="cursor: pointer;" title="コンテキスト管理・一覧を開く">Contexts</span>
     <span class="sidebar-section-actions">
-      <a hx-get="/partials/items?view=contexts" hx-target="#main-content-pane" class="badge" style="cursor: pointer; text-decoration: none;" title="すべてのコンテキスト一覧・管理">管理 ({{len .Contexts}})</a>
+      <a href="/?view=contexts" hx-get="/partials/items?view=contexts" hx-target="#main-content-pane" class="badge" style="cursor: pointer; text-decoration: none;" title="すべてのコンテキスト一覧・管理">管理 ({{len .Contexts}})</a>
       <button type="button" class="sidebar-add-toggle" onclick="toggleSidebarAddForm('sidebar-context-add')" title="コンテキストを追加" aria-label="コンテキストを追加" aria-controls="sidebar-context-add" aria-expanded="false">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
       </button>
@@ -130,7 +130,7 @@
     {{range .Contexts}}
       <a class="sidebar-context-chip" 
          data-nav="context-{{.ID}}"
-         hx-get="/partials/items?view=next&context_id={{.ID}}" 
+         href="/?view=next&context_id={{.ID}}" hx-get="/partials/items?view=next&context_id={{.ID}}" 
          hx-target="#main-content-pane" 
          onclick="closeDetailPane()"
          title="{{.Name}}">
@@ -156,7 +156,7 @@
   <div class="sidebar-section-title">
     <span hx-get="/partials/items?view=projects" hx-target="#main-content-pane" style="cursor: pointer;" title="プロジェクト管理・一覧を開く">Projects</span>
     <span class="sidebar-section-actions">
-      <a hx-get="/partials/items?view=projects" hx-target="#main-content-pane" class="badge" style="cursor: pointer; text-decoration: none;" title="すべてのプロジェクト一覧・管理">管理 ({{len .Projects}})</a>
+      <a href="/?view=projects" hx-get="/partials/items?view=projects" hx-target="#main-content-pane" class="badge" style="cursor: pointer; text-decoration: none;" title="すべてのプロジェクト一覧・管理">管理 ({{len .Projects}})</a>
       <button type="button" class="sidebar-add-toggle" onclick="toggleSidebarAddForm('sidebar-project-add')" title="プロジェクトを追加" aria-label="プロジェクトを追加" aria-controls="sidebar-project-add" aria-expanded="false">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
       </button>
@@ -166,7 +166,7 @@
     {{range .Projects}}
       <a class="nav-item compact-project {{if .IsStalled}}stalled-nav{{end}}" 
          data-nav="project-{{.ID}}"
-         hx-get="/partials/items?project_id={{.ID}}" 
+         href="/?project_id={{.ID}}" hx-get="/partials/items?project_id={{.ID}}" 
          hx-target="#main-content-pane" 
          onclick="closeDetailPane()"
          title="{{.Name}}{{if .IsStalled}} (Next Action 0件) {{end}}">
@@ -193,7 +193,7 @@
 
   {{if or (gt .Counts.DoneProjects 0) (gt .Counts.SomedayProjects 0)}}
     <a class="nav-item compact-project" 
-       hx-get="/partials/items?view=projects&project_status=done" 
+       href="/?view=projects&project_status=done" hx-get="/partials/items?view=projects&project_status=done" 
        hx-target="#main-content-pane" 
        onclick="closeDetailPane()"
        style="color: var(--md-sys-color-outline); margin-top: 2px;"

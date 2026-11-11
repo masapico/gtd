@@ -19,9 +19,12 @@ func TestProjectSequentialAndOrdering(t *testing.T) {
 	defer database.Close()
 
 	// 1. 冪等性テスト: もう一度 InitDB を呼んでもエラーにならないこと
-	if _, err := db.InitDB(dbPath); err != nil {
+	second, err := db.InitDB(dbPath)
+	if err != nil {
 		t.Fatalf("Second InitDB failed: %v", err)
 	}
+	// 閉じないと Windows では一時ディレクトリの DB ファイルを削除できずテストが失敗する
+	second.Close()
 
 	// 2. 順次プロジェクトの作成
 	proj := &model.Project{

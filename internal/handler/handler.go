@@ -82,6 +82,19 @@ func asciiJSON(s string) string {
 	return b.String()
 }
 
+// mainPaneTarget は中央ペインを差し替えるリクエストで htmx が送る HX-Target の値です
+const mainPaneTarget = "main#main-content-pane"
+
+// PushURL は中央ペインへの画面遷移のとき、ブラウザの URL を path に更新させます。
+// リロードや「戻る」で同じ画面を復元できるようにするためのもので、
+// 一覧の自動再描画（対象が中央ペイン以外）では履歴を増やしません。
+func (h *Handler) PushURL(w http.ResponseWriter, r *http.Request, path string) {
+	if r.Header.Get("HX-Target") != mainPaneTarget {
+		return
+	}
+	w.Header().Set("HX-Push-Url", path)
+}
+
 // Render は指定されたテンプレートを描画します
 func (h *Handler) Render(w http.ResponseWriter, name string, data interface{}) {
 	var buf bytes.Buffer

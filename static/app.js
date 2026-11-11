@@ -239,6 +239,34 @@ function isAnyModalOpen() {
 const SHORTCUT_STATUSES = { '1': 'inbox', '2': 'next', '3': 'waiting', '4': 'someday', '5': 'reference' };
 let selectedItemId = null;
 
+// 完了・移動で選択中のカードが一覧から消えた場合に、代わりに選択するカード（直後、なければ直前）。
+// 無関係な画面遷移で誤って使われないよう、操作直後の短時間だけ有効にする。
+const SELECTION_HANDOFF_MS = 3000;
+let selectionHandoff = null; // { id, at }
+
+function rememberSelectionHandoff(cards, index) {
+  const neighbor = cards[index + 1] || cards[index - 1];
+  const id = neighbor ? cardItemId(neighbor) : null;
+  selectionHandoff = id ? { id, at: Date.now() } : null;
+}
+
+// g に続けて押すキー → サイドバーのリンク先
+const GOTO_VIEWS = {
+  i: '/?view=inbox', n: '/?view=next', s: '/?view=scheduled', w: '/?view=waiting',
+  m: '/?view=someday', f: '/?view=reference', d: '/?view=done',
+  r: '/?view=review&step=1', p: '/?view=projects',
+};
+const GOTO_PREFIX_MS = 1500;
+let gotoPrefixAt = 0;
+
+function goToView(key) {
+  const href = GOTO_VIEWS[key];
+  const link = href && document.querySelector(`#sidebar-pane a[href="${href}"]`);
+  if (!link) return false;
+  link.click();
+  return true;
+}
+
 function visibleItemCards() {
   return [...document.querySelectorAll('#main-content-pane .item-card')]
     .filter(el => el.offsetParent !== null && !el.classList.contains('pending-delete'));
@@ -263,12 +291,22 @@ function handleListShortcut(key) {
     return true;
   }
 
+  // g → i / n / s ... でビュー移動
+  const gotoPending = Date.now() - gotoPrefixAt < GOTO_PREFIX_MS;
+  gotoPrefixAt = 0;
+  if (gotoPending && goToView(key)) return true;
+  if (key === 'g') {
+    gotoPrefixAt = Date.now();
+    return true;
+  }
+
   const cards = visibleItemCards();
   if (cards.length === 0) return false;
   const current = cards.findIndex(c => c.classList.contains('selected'));
   const card = cards[current];
 
   if (key === 'j' || key === 'k') {
+    selectionHandoff = null;
     const next = current === -1 ? 0 : Math.min(Math.max(current + (key === 'j' ? 1 : -1), 0), cards.length - 1);
     selectItemCard(cards[next]);
     return true;
@@ -282,10 +320,14 @@ function handleListShortcut(key) {
   }
   if (key === 'x') {
     const checkbox = card.querySelector('.item-checkbox');
-    if (checkbox) checkbox.click();
+    if (checkbox) {
+      rememberSelectionHandoff(cards, current);
+      checkbox.click();
+    }
     return true;
   }
   if (SHORTCUT_STATUSES[key] && id) {
+    rememberSelectionHandoff(cards, current);
     sendItemRequest('PATCH', `/items/${id}/status`, { status: SHORTCUT_STATUSES[key] })
       .then(() => htmx.trigger(document.body, 'itemDetailRefresh'))
       .catch(err => showToast(err.message, true));
@@ -297,14 +339,34 @@ function handleListShortcut(key) {
 // リスト再描画後も、選択していたアイテムのハイライトを復元する
 function restoreSelectedCard() {
   if (!selectedItemId) return;
-  const card = visibleItemCards().find(c => cardItemId(c) === selectedItemId);
-  if (card) card.classList.add('selected');
+  const cards = visibleItemCards();
+  const card = cards.find(c => cardItemId(c) === selectedItemId);
+  if (card) {
+    card.classList.add('selected');
+    return;
+  }
+  // 選択していたカードが消えた: 直前のキー操作によるものなら隣のカードへ選択を移す
+  const handoff = selectionHandoff;
+  if (!handoff || Date.now() - handoff.at > SELECTION_HANDOFF_MS) return;
+  const neighbor = cards.find(c => cardItemId(c) === handoff.id);
+  if (neighbor) {
+    selectionHandoff = null;
+    selectItemCard(neighbor);
+  }
 }
 document.addEventListener('htmx:afterSwap', restoreSelectedCard);
 document.addEventListener('htmx:after:swap', restoreSelectedCard);
 document.addEventListener('click', (e) => {
   const card = e.target.closest?.('#main-content-pane .item-card');
-  if (card) selectedItemId = cardItemId(card);
+  if (!card) return;
+  selectedItemId = cardItemId(card);
+  // マウス操作（e.detail > 0）で選び直したら引き継ぎ予約は破棄。キー操作が発火させた click は対象外
+  if (e.detail > 0) selectionHandoff = null;
+});
+
+// 表示中と同じ URL を履歴に積まない（同じビューの再クリックや再取得で「戻る」が空振りしないように）
+document.addEventListener('htmx:before:history:update', (e) => {
+  if (e.detail?.history?.path === location.pathname + location.search) e.preventDefault();
 });
 
 function openShortcutsHelp() {
@@ -373,13 +435,13 @@ function selectSearchResult(itemId) {
   closeOmnisearchDropdown();
   
   // 中央リストの選択状態を更新
-  let found = false;
+  selectedItemId = String(itemId);
+  selectionHandoff = null;
   document.querySelectorAll('.item-card').forEach(el => {
-    if (el.getAttribute('onclick')?.includes(itemId)) {
+    if (cardItemId(el) === selectedItemId) {
       el.classList.add('selected', 'pulse-highlight');
       el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       setTimeout(() => el.classList.remove('pulse-highlight'), 1500);
-      found = true;
     } else {
       el.classList.remove('selected', 'pulse-highlight');
     }

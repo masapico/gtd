@@ -172,17 +172,17 @@
   <!-- Next Actions の場合の Context Filter Chips -->
   {{if eq .View "next"}}
     <div class="filter-chips-bar">
-      <span class="chip {{if not .ContextID}}active{{end}}" 
-            hx-get="/partials/items?view=next" 
+      <a class="chip {{if not .ContextID}}active{{end}}" 
+            href="/?view=next" hx-get="/partials/items?view=next" 
             hx-target="#main-content-pane">
         すべて
-      </span>
+      </a>
       {{range .Contexts}}
-        <span class="chip {{if $.ContextID}}{{if eq (derefInt64 $.ContextID) .ID}}active{{end}}{{end}}" 
-              hx-get="/partials/items?view=next&context_id={{.ID}}" 
+        <a class="chip {{if $.ContextID}}{{if eq (derefInt64 $.ContextID) .ID}}active{{end}}{{end}}" 
+              href="/?view=next&context_id={{.ID}}" hx-get="/partials/items?view=next&context_id={{.ID}}" 
               hx-target="#main-content-pane">
           {{.Name}} {{if gt .ItemCount 0}}({{.ItemCount}}){{end}}
-        </span>
+        </a>
       {{end}}
     </div>
   {{end}}
@@ -190,26 +190,26 @@
   <!-- Projects 管理ビューの場合のステータス Filter Chips -->
   {{if eq .View "projects"}}
     <div class="filter-chips-bar">
-      <span class="chip {{if or (eq .ProjectStatus "all") (eq .ProjectStatus "")}}active{{end}}" 
-            hx-get="/partials/items?view=projects&project_status=all" 
+      <a class="chip {{if or (eq .ProjectStatus "all") (eq .ProjectStatus "")}}active{{end}}" 
+            href="/?view=projects&project_status=all" hx-get="/partials/items?view=projects&project_status=all" 
             hx-target="#main-content-pane">
         すべて ({{add .Counts.Projects (add .Counts.DoneProjects .Counts.SomedayProjects)}})
-      </span>
-      <span class="chip {{if eq .ProjectStatus "active"}}active{{end}}" 
-            hx-get="/partials/items?view=projects&project_status=active" 
+      </a>
+      <a class="chip {{if eq .ProjectStatus "active"}}active{{end}}" 
+            href="/?view=projects&project_status=active" hx-get="/partials/items?view=projects&project_status=active" 
             hx-target="#main-content-pane">
         進行中 ({{.Counts.Projects}})
-      </span>
-      <span class="chip {{if eq .ProjectStatus "someday"}}active{{end}}" 
-            hx-get="/partials/items?view=projects&project_status=someday" 
+      </a>
+      <a class="chip {{if eq .ProjectStatus "someday"}}active{{end}}" 
+            href="/?view=projects&project_status=someday" hx-get="/partials/items?view=projects&project_status=someday" 
             hx-target="#main-content-pane">
         保留中 ({{.Counts.SomedayProjects}})
-      </span>
-      <span class="chip {{if eq .ProjectStatus "done"}}active{{end}}" 
-            hx-get="/partials/items?view=projects&project_status=done" 
+      </a>
+      <a class="chip {{if eq .ProjectStatus "done"}}active{{end}}" 
+            href="/?view=projects&project_status=done" hx-get="/partials/items?view=projects&project_status=done" 
             hx-target="#main-content-pane">
         完了済み ({{.Counts.DoneProjects}})
-      </span>
+      </a>
     </div>
   {{end}}
 
@@ -257,46 +257,46 @@
 
     <!-- ステータス Filter Chips -->
     <div class="filter-chips-bar" style="margin-top: 10px;">
-      <span class="chip {{if or (eq .ItemStatusFilter "") (eq .ItemStatusFilter "all")}}active{{end}}" 
-            hx-get="/partials/items?project_id={{.CurrentProject.ID}}&item_status=all" 
+      <a class="chip {{if or (eq .ItemStatusFilter "") (eq .ItemStatusFilter "all")}}active{{end}}" 
+            href="/?project_id={{.CurrentProject.ID}}&item_status=all" hx-get="/partials/items?project_id={{.CurrentProject.ID}}&item_status=all" 
             hx-target="#main-content-pane">
         すべて ({{.ProjectStats.TotalCount}})
-      </span>
+      </a>
       {{if gt .ProjectStats.InboxCount 0}}
-        <span class="chip chip-inbox {{if eq .ItemStatusFilter "inbox"}}active{{end}}" 
-              hx-get="/partials/items?project_id={{.CurrentProject.ID}}&item_status=inbox" 
+        <a class="chip chip-inbox {{if eq .ItemStatusFilter "inbox"}}active{{end}}" 
+              href="/?project_id={{.CurrentProject.ID}}&item_status=inbox" hx-get="/partials/items?project_id={{.CurrentProject.ID}}&item_status=inbox" 
               hx-target="#main-content-pane">
           未整理 ({{.ProjectStats.InboxCount}})
-        </span>
+        </a>
       {{end}}
-      <span class="chip chip-next {{if eq .ItemStatusFilter "next"}}active{{end}}" 
-            hx-get="/partials/items?project_id={{.CurrentProject.ID}}&item_status=next" 
+      <a class="chip chip-next {{if eq .ItemStatusFilter "next"}}active{{end}}" 
+            href="/?project_id={{.CurrentProject.ID}}&item_status=next" hx-get="/partials/items?project_id={{.CurrentProject.ID}}&item_status=next" 
             hx-target="#main-content-pane"
             title="Next Action: {{.ProjectStats.NextCount}}件{{if .CurrentProject.IsSequential}} (今実行可能: {{.ProjectStats.AvailableCount}}件 / 待機中: {{.ProjectStats.BlockedCount}}件){{end}}">
         Next ({{.ProjectStats.NextCount}}){{if and .CurrentProject.IsSequential (gt .ProjectStats.BlockedCount 0)}}<small style="opacity:0.8;font-size:0.7em;margin-left:3px;">[{{.ProjectStats.AvailableCount}}可]</small>{{end}}
-      </span>
-      <span class="chip chip-waiting {{if eq .ItemStatusFilter "waiting"}}active{{end}}" 
-            hx-get="/partials/items?project_id={{.CurrentProject.ID}}&item_status=waiting" 
+      </a>
+      <a class="chip chip-waiting {{if eq .ItemStatusFilter "waiting"}}active{{end}}" 
+            href="/?project_id={{.CurrentProject.ID}}&item_status=waiting" hx-get="/partials/items?project_id={{.CurrentProject.ID}}&item_status=waiting" 
             hx-target="#main-content-pane">
         Waiting ({{.ProjectStats.WaitingCount}})
-      </span>
-      <span class="chip chip-someday {{if eq .ItemStatusFilter "someday"}}active{{end}}" 
-            hx-get="/partials/items?project_id={{.CurrentProject.ID}}&item_status=someday" 
+      </a>
+      <a class="chip chip-someday {{if eq .ItemStatusFilter "someday"}}active{{end}}" 
+            href="/?project_id={{.CurrentProject.ID}}&item_status=someday" hx-get="/partials/items?project_id={{.CurrentProject.ID}}&item_status=someday" 
             hx-target="#main-content-pane">
         Someday ({{.ProjectStats.SomedayCount}})
-      </span>
+      </a>
       {{if gt .ProjectStats.ReferenceCount 0}}
-        <span class="chip chip-reference {{if eq .ItemStatusFilter "reference"}}active{{end}}" 
-              hx-get="/partials/items?project_id={{.CurrentProject.ID}}&item_status=reference" 
+        <a class="chip chip-reference {{if eq .ItemStatusFilter "reference"}}active{{end}}" 
+              href="/?project_id={{.CurrentProject.ID}}&item_status=reference" hx-get="/partials/items?project_id={{.CurrentProject.ID}}&item_status=reference" 
               hx-target="#main-content-pane">
           資料 ({{.ProjectStats.ReferenceCount}})
-        </span>
+        </a>
       {{end}}
-      <span class="chip chip-done {{if eq .ItemStatusFilter "done"}}active{{end}}" 
-            hx-get="/partials/items?project_id={{.CurrentProject.ID}}&item_status=done" 
+      <a class="chip chip-done {{if eq .ItemStatusFilter "done"}}active{{end}}" 
+            href="/?project_id={{.CurrentProject.ID}}&item_status=done" hx-get="/partials/items?project_id={{.CurrentProject.ID}}&item_status=done" 
             hx-target="#main-content-pane">
         Done ({{.ProjectStats.DoneCount}})
-      </span>
+      </a>
     </div>
   {{end}}
 </div>
@@ -319,7 +319,7 @@
               <span class="badge" style="background-color: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container); font-weight: 600; font-size: 0.95rem;">
                 {{.Name}}
               </span>
-              <a hx-get="/partials/items?view=next&context_id={{.ID}}" 
+              <a href="/?view=next&context_id={{.ID}}" hx-get="/partials/items?view=next&context_id={{.ID}}" 
                  hx-target="#main-content-pane" 
                  class="badge" 
                  style="cursor: pointer; text-decoration: none; font-size: 0.75rem;" 

@@ -70,6 +70,17 @@ body {
   flex-direction: column;
 }
 
+/* キーボード操作時のフォーカスリング（マウスクリックでは出ない）。
+   入力欄は各コンポーネント側の :focus スタイルに任せる */
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible,
+[tabindex="0"]:focus-visible,
+input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
 /* Global Hidden Utility */
 .hidden {
   display: none !important;

@@ -15,6 +15,7 @@ import (
 type IndexData struct {
 	Sidebar  SidebarData
 	ItemList ItemListData
+	Review   *ReviewData // 週次レビューを直接開いた場合のみ設定（中央ペインに一覧の代わりに描画）
 }
 
 // SidebarData はサイドバー描画用のデータモデルです
@@ -439,6 +440,16 @@ func (h *Handler) ServeIndex(w http.ResponseWriter, r *http.Request) {
 		view = "inbox"
 	}
 
+	// 週次レビューを URL から直接開く（リロード・「戻る」での復元用）
+	if view == "review" {
+		review := h.buildReviewData(r.URL.Query().Get("step"))
+		h.Render(w, "layout.html", IndexData{
+			Sidebar: h.buildSidebarData(view, 0),
+			Review:  &review,
+		})
+		return
+	}
+
 	var pID *int64
 	var selectedID int64
 	if pidStr := r.URL.Query().Get("project_id"); pidStr != "" {
@@ -520,6 +531,12 @@ func (h *Handler) ServeItemList(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	pagePath := "/"
+	if r.URL.RawQuery != "" {
+		pagePath += "?" + r.URL.RawQuery
+	}
+	h.PushURL(w, r, pagePath)
 
 	h.Render(w, "item_list.html", data)
 }

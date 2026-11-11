@@ -2065,3 +2065,70 @@ func TestCreateItemCaptureToast(t *testing.T) {
 		t.Errorf("expected toast %q in HX-Trigger, got %q", want, trigger)
 	}
 }
+
+// 画面遷移（中央ペインの差し替え）では URL を更新させ、一覧の自動再描画では更新させない
+func TestViewNavigationPushesURL(t *testing.T) {
+	_, mux, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	get := func(path, target string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest("GET", path, nil)
+		if target != "" {
+			req.Header.Set("HX-Request", "true")
+			req.Header.Set("HX-Target", target)
+		}
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET %s failed: %d", path, rec.Code)
+		}
+		return rec
+	}
+
+	cases := []struct{ path, target, want string }{
+		{"/partials/items?view=next&context_id=1", "main#main-content-pane", "/?view=next&context_id=1"},
+		{"/partials/items?view=next", "div#items-view-container", ""},
+		{"/partials/items?view=next", "", ""},
+		{"/review/step/2", "main#main-content-pane", "/?view=review&step=2"},
+		{"/review/step/9", "main#main-content-pane", "/?view=review&step=1"},
+	}
+	for _, c := range cases {
+		if got := get(c.path, c.target).Header().Get("HX-Push-Url"); got != c.want {
+			t.Errorf("GET %s (target %q): HX-Push-Url = %q, want %q", c.path, c.target, got, c.want)
+		}
+	}
+}
+
+// 更新された URL を直接開く（リロード・「戻る」）と、同じ画面が 3 ペインのレイアウトごと描画される
+func TestIndexRestoresViewFromURL(t *testing.T) {
+	_, mux, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	cases := []struct {
+		path     string
+		contains []string
+	}{
+		{"/?view=review&step=2", []string{`id="sidebar-pane"`, "Step 2: Get Current", `data-view="review"`}},
+		{"/?view=review", []string{"Step 1: Get Clear"}},
+		{"/?view=scheduled", []string{`id="sidebar-pane"`, `data-view="scheduled"`}},
+		{"/?view=next&context_id=1", []string{`data-view="next"`, `data-context-id="1"`}},
+	}
+	for _, c := range cases {
+		req := httptest.NewRequest("GET", c.path, nil)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Errorf("GET %s failed: %d", c.path, rec.Code)
+			continue
+		}
+		body := rec.Body.String()
+		for _, want := range c.contains {
+			if !strings.Contains(body, want) {
+				t.Errorf("GET %s: expected body to contain %q", c.path, want)
+			}
+		}
+		if strings.Contains(c.path, "view=review") && strings.Contains(body, `id="items-view-container"`) {
+			t.Errorf("GET %s: review page should not render the item list", c.path)
+		}
+	}
+}
