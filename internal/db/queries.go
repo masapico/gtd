@@ -575,7 +575,7 @@ func GetProjects(db *sql.DB, status string) ([]model.Project, error) {
 			p.last_reviewed_at, p.created_at, p.updated_at,
 			(SELECT COUNT(*) FROM items i JOIN item_state s ON i.id = s.id WHERE i.project_id = p.id AND s.is_available = 1) AS next_action_count,
 			(SELECT COUNT(*) FROM items i WHERE i.project_id = p.id AND i.status = 'waiting') AS waiting_count,
-			(SELECT COUNT(*) FROM items i WHERE i.project_id = p.id) AS total_item_count
+			(SELECT COUNT(*) FROM items i WHERE i.project_id = p.id AND i.status NOT IN ('done', 'reference')) AS total_item_count
 		FROM projects p
 	`
 	var rows *sql.Rows
@@ -620,7 +620,7 @@ func GetProjectByID(db *sql.DB, id int64) (*model.Project, error) {
 			p.last_reviewed_at, p.created_at, p.updated_at,
 			(SELECT COUNT(*) FROM items i JOIN item_state s ON i.id = s.id WHERE i.project_id = p.id AND s.is_available = 1) AS next_action_count,
 			(SELECT COUNT(*) FROM items i WHERE i.project_id = p.id AND i.status = 'waiting') AS waiting_count,
-			(SELECT COUNT(*) FROM items i WHERE i.project_id = p.id) AS total_item_count
+			(SELECT COUNT(*) FROM items i WHERE i.project_id = p.id AND i.status NOT IN ('done', 'reference')) AS total_item_count
 		FROM projects p
 		WHERE p.id = ?
 	`, id)
@@ -1112,7 +1112,7 @@ func GetActiveProjectsForReview(db *sql.DB) ([]model.Project, error) {
 			p.last_reviewed_at, p.created_at, p.updated_at,
 			(SELECT COUNT(*) FROM items i JOIN item_state s ON i.id = s.id WHERE i.project_id = p.id AND s.is_available = 1) AS next_action_count,
 			(SELECT COUNT(*) FROM items i WHERE i.project_id = p.id AND i.status = 'waiting') AS waiting_count,
-			(SELECT COUNT(*) FROM items it WHERE it.project_id = p.id) AS total_item_count
+			(SELECT COUNT(*) FROM items it WHERE it.project_id = p.id AND it.status NOT IN ('done', 'reference')) AS total_item_count
 		FROM projects p
 		WHERE p.status = 'active'
 		ORDER BY next_action_count ASC, p.id ASC

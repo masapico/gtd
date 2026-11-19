@@ -176,13 +176,13 @@
         <span class="nav-label">{{.Name}}</span>
         {{if eq .NextActionCount 0}}
           {{if gt .TotalItemCount 0}}
-            <span class="badge badge-alert" title="タスク {{.TotalItemCount}}件（Next Action 0件）">0/{{.TotalItemCount}}</span>
+            <span class="badge badge-alert" title="未完了タスク {{.TotalItemCount}}件（Next Action 0件）">0/{{.TotalItemCount}}</span>
           {{else}}
             <span class="badge badge-alert" title="Next Actionがありません（タスク0件）">0</span>
           {{end}}
         {{else}}
           {{if gt .TotalItemCount .NextActionCount}}
-            <span class="badge" title="Next Action {{.NextActionCount}}件 / 合計 {{.TotalItemCount}}件">{{.NextActionCount}}/{{.TotalItemCount}}</span>
+            <span class="badge" title="Next Action {{.NextActionCount}}件 / 未完了 {{.TotalItemCount}}件">{{.NextActionCount}}/{{.TotalItemCount}}</span>
           {{else}}
             <span class="badge" title="Next Action {{.NextActionCount}}件">{{.NextActionCount}}</span>
           {{end}}

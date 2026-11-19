@@ -26,9 +26,9 @@
   <!-- 「戻る / 進む」は部分差し替えではなくページ再読み込みで復元する（JS 側の状態と確実に揃えるため） -->
   <meta name="htmx-config" content='{"history":"reload"}'>
 
-  <link rel="stylesheet" href="/static/style.css?v=23">
+  <link rel="stylesheet" href="/static/style.css?v=24">
   <script src="/static/htmx.min.js"></script>
-  <script src="/static/app.js?v=23"></script>
+  <script src="/static/app.js?v=24"></script>
 </head>
 <body hx-ext="morph">
 
@@ -349,6 +349,13 @@
                 <input type="time" id="alarm-time-input" class="form-control alarm-time-control" onchange="onAlarmInputChange()" required>
               </div>
               <div id="alarm-validation-msg" class="form-help-text">※当日の現在時刻より後の時刻を設定してください</div>
+            </div>
+
+            <div class="form-group">
+              <label for="alarm-label-input" class="form-label">用件 (任意)</label>
+              <input type="text" id="alarm-label-input" class="form-control" maxlength="60" autocomplete="off"
+                     placeholder="例: 定例会議、経費精算の締め切り"
+                     onkeydown="if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); saveAlarmFromInput(); }">
             </div>
 
             <!-- Quick Offset Presets -->

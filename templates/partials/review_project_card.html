@@ -20,7 +20,7 @@
         <p style="font-size: 0.85rem; color: var(--md-sys-color-on-surface-variant); margin-top: 2px;">{{.Description}}</p>
       {{end}}
       <div style="font-size: 0.78rem; color: var(--md-sys-color-outline); margin-top: 4px;">
-        Next Action: <strong>{{.NextActionCount}}</strong> 件 / 合計: {{.TotalItemCount}} 件
+        Next Action: <strong>{{.NextActionCount}}</strong> 件 / 未完了: {{.TotalItemCount}} 件
         {{if .LastReviewedAt}} | 前回点検: {{formatDate .LastReviewedAt}}{{end}}
       </div>
     </div>

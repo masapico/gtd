@@ -284,11 +284,38 @@ function cardItemId(card) {
   return m ? m[1] : null;
 }
 
+// sticky な .content-header に隠れないよう、カードを中央ペインの可視範囲へスクロールする
+// （scrollIntoView の 'nearest' は sticky ヘッダーの高さを考慮しないため自前で計算する）
+function scrollCardIntoView(card) {
+  const pane = card.closest('#main-content-pane');
+  if (!pane) {
+    card.scrollIntoView({ block: 'nearest' });
+    return;
+  }
+  // 先頭カードならペイン最上部まで戻し、プロジェクト情報などのヘッダーを全部見せる
+  if (visibleItemCards()[0] === card) {
+    pane.scrollTop = 0;
+    return;
+  }
+  const header = pane.querySelector('.content-header');
+  const headerH = header ? header.getBoundingClientRect().height : 0;
+  const paneRect = pane.getBoundingClientRect();
+  const rect = card.getBoundingClientRect();
+  const margin = 8;
+  const visibleTop = paneRect.top + headerH + margin;
+  const visibleBottom = paneRect.bottom - margin;
+  if (rect.top < visibleTop) {
+    pane.scrollTop -= visibleTop - rect.top;
+  } else if (rect.bottom > visibleBottom) {
+    pane.scrollTop += Math.min(rect.bottom - visibleBottom, rect.top - visibleTop);
+  }
+}
+
 function selectItemCard(card) {
   document.querySelectorAll('.item-card.selected').forEach(c => c.classList.remove('selected'));
   if (!card) return;
   card.classList.add('selected');
-  card.scrollIntoView({ block: 'nearest' });
+  scrollCardIntoView(card);
   selectedItemId = cardItemId(card);
 }
 
@@ -363,7 +390,7 @@ function moveSelectedCard(dir) {
   const neighbor = siblings[dir === 'up' ? idx - 1 : idx + 1];
   if (!neighbor) return true; // セクションの端
   neighbor.insertAdjacentElement(dir === 'up' ? 'beforebegin' : 'afterend', card);
-  card.scrollIntoView({ block: 'nearest' });
+  scrollCardIntoView(card);
 
   selectedItemId = id;
   scrollSelectedAfterSwap = true;
@@ -465,7 +492,7 @@ function restoreSelectedCard() {
   const card = cards.find(c => cardItemId(c) === selectedItemId);
   if (card) {
     card.classList.add('selected');
-    if (scrollSelectedAfterSwap) card.scrollIntoView({ block: 'nearest' });
+    if (scrollSelectedAfterSwap) scrollCardIntoView(card);
     scrollSelectedAfterSwap = false;
     return;
   }
@@ -1324,6 +1351,8 @@ let alarmTime = ''; // "HH:MM"
 let alarmDate = ''; // "YYYY-MM-DD"
 let alarmRinging = false;
 let alarmRingingTime = '';
+let alarmLabel = ''; // 用件（任意のプレーンテキスト）
+let alarmRingingLabel = '';
 let currentAlertType = ''; // 'timer' | 'alarm' | ''
 
 let isTimeAlertActive = false;
@@ -1413,6 +1442,9 @@ function loadTimeStateFromStorage() {
         alarmEnabled = true;
         alarmTime = savedAlarmTime;
         alarmDate = savedAlarmDate;
+        alarmLabel = localStorage.getItem('gtd_alarm_label') || '';
+        const labelInput = document.getElementById('alarm-label-input');
+        if (labelInput) labelInput.value = alarmLabel;
       } else {
         // 当日だがすでに過ぎた時刻
         alarmEnabled = false;
@@ -1421,6 +1453,7 @@ function loadTimeStateFromStorage() {
         localStorage.removeItem('gtd_alarm_enabled');
         localStorage.removeItem('gtd_alarm_time');
         localStorage.removeItem('gtd_alarm_date');
+        localStorage.removeItem('gtd_alarm_label');
       }
     } else {
       alarmEnabled = false;
@@ -1429,6 +1462,7 @@ function loadTimeStateFromStorage() {
       localStorage.removeItem('gtd_alarm_enabled');
       localStorage.removeItem('gtd_alarm_time');
       localStorage.removeItem('gtd_alarm_date');
+      localStorage.removeItem('gtd_alarm_label');
     }
   } catch (err) {
     console.error('Failed to load time state from localStorage', err);
@@ -1718,17 +1752,24 @@ function saveAlarmFromInput() {
 
   alarmTime = input.value;
   alarmDate = getTodayDateString();
+  alarmLabel = (document.getElementById('alarm-label-input')?.value || '').trim();
   alarmEnabled = true;
   alarmRinging = false;
   alarmRingingTime = '';
+  alarmRingingLabel = '';
 
   localStorage.setItem('gtd_alarm_enabled', 'true');
   localStorage.setItem('gtd_alarm_time', alarmTime);
   localStorage.setItem('gtd_alarm_date', alarmDate);
+  if (alarmLabel) {
+    localStorage.setItem('gtd_alarm_label', alarmLabel);
+  } else {
+    localStorage.removeItem('gtd_alarm_label');
+  }
 
   updateAlarmModalUI();
   updateClockWidgetBadges();
-  showToast(`アラームを ${alarmTime} にセットしました`);
+  showToast(`アラームを ${alarmTime} にセットしました${alarmLabel ? `（${alarmLabel}）` : ''}`);
 }
 
 function clearAlarm() {
@@ -1738,18 +1779,23 @@ function clearAlarm() {
   alarmEnabled = false;
   alarmTime = '';
   alarmDate = '';
+  alarmLabel = '';
   alarmRinging = false;
   alarmRingingTime = '';
+  alarmRingingLabel = '';
 
   localStorage.removeItem('gtd_alarm_enabled');
   localStorage.removeItem('gtd_alarm_time');
   localStorage.removeItem('gtd_alarm_date');
+  localStorage.removeItem('gtd_alarm_label');
 
   // アラート作動中なら確実に停止
   dismissTimeAlert();
 
-  // 入力欄も現在時刻の1時間後（デフォルト）にリセット
+  // 入力欄も現在時刻の1時間後（デフォルト）にリセットし、用件も空にする
   setAlarmOffset(60);
+  const labelInput = document.getElementById('alarm-label-input');
+  if (labelInput) labelInput.value = '';
 
   updateAlarmModalUI();
   updateClockWidgetBadges();
@@ -1772,7 +1818,7 @@ function updateAlarmModalUI() {
   if (alarmRinging) {
     // 鳴動中・終了した状態
     statusBox?.classList.add('active', 'ringing');
-    if (headline) headline.textContent = `アラーム到達: ${alarmRingingTime || alarmTime}`;
+    if (headline) headline.textContent = `アラーム到達: ${alarmRingingTime || alarmTime}${alarmRingingLabel ? ` — ${alarmRingingLabel}` : ''}`;
     if (detail) detail.textContent = '設定時刻になりました。「解除」ボタンで停止できます';
     if (cancelBtn) {
       cancelBtn.disabled = false;
@@ -1784,9 +1830,11 @@ function updateAlarmModalUI() {
   } else if (alarmEnabled && alarmTime) {
     // セット中
     if (input) input.value = alarmTime;
+    const labelInput = document.getElementById('alarm-label-input');
+    if (labelInput && document.activeElement !== labelInput) labelInput.value = alarmLabel;
     statusBox?.classList.remove('ringing');
     statusBox?.classList.add('active');
-    if (headline) headline.textContent = `アラーム設定中: ${alarmTime}`;
+    if (headline) headline.textContent = `アラーム設定中: ${alarmTime}${alarmLabel ? ` — ${alarmLabel}` : ''}`;
 
     const [h, m] = alarmTime.split(':').map(Number);
     const now = new Date();
@@ -1890,6 +1938,7 @@ function dismissTimeAlert() {
   currentAlertType = '';
   alarmRinging = false;
   alarmRingingTime = '';
+  alarmRingingLabel = '';
 
   const clockEl = document.getElementById('topbar-clock');
   clockEl?.classList.remove('ringing');
@@ -1906,6 +1955,8 @@ function dismissTimeAlert() {
   // アラームが終了した場合は、入力欄を現在時刻+1時間後にリセット
   if (!alarmEnabled) {
     setAlarmOffset(60);
+    const labelInput = document.getElementById('alarm-label-input');
+    if (labelInput) labelInput.value = '';
   }
 
   updateAlarmModalUI();
@@ -1947,8 +1998,8 @@ function updateClockWidgetBadges() {
     if (alarmEnabled && alarmTime) {
       alarmBadge.classList.remove('hidden');
       alarmBadge.style.display = 'inline-flex';
-      alarmBadgeText.textContent = alarmTime;
-      alarmBadge.title = `本日 ${alarmTime} にアラーム設定中`;
+      alarmBadgeText.textContent = alarmLabel ? `${alarmTime} ${alarmLabel}` : alarmTime;
+      alarmBadge.title = `本日 ${alarmTime} にアラーム設定中${alarmLabel ? `: ${alarmLabel}` : ''}`;
     } else {
       alarmBadge.classList.add('hidden');
       alarmBadge.style.display = 'none';
@@ -2018,14 +2069,17 @@ function initClock() {
         alarmEnabled = false;
         alarmRinging = true;
         alarmRingingTime = ringTime;
+        alarmRingingLabel = alarmLabel;
+        alarmLabel = '';
 
         localStorage.removeItem('gtd_alarm_enabled');
         localStorage.removeItem('gtd_alarm_time');
         localStorage.removeItem('gtd_alarm_date');
+        localStorage.removeItem('gtd_alarm_label');
 
         updateAlarmModalUI();
         updateClockWidgetBadges();
-        triggerTimeAlert('alarm', 'アラーム時刻到達', `指定の時刻 (${ringTime}) になりました`);
+        triggerTimeAlert('alarm', alarmRingingLabel || 'アラーム時刻到達', alarmRingingLabel ? `アラーム時刻 (${ringTime}) になりました` : `指定の時刻 (${ringTime}) になりました`);
       }
     }
 

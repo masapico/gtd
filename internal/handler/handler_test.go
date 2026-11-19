@@ -1642,7 +1642,7 @@ func TestItemDetailProjectAssignmentAndSidebarCount(t *testing.T) {
 		t.Errorf("expected 'itemChanged' in HX-Trigger, got: %s", trigger)
 	}
 
-	// 5. サイドバーを再取得し、0/1 バッジ（Next Action 0件 / 合計 1件）が表示されること
+	// 5. サイドバーを再取得し、0/1 バッジ（Next Action 0件 / 未完了 1件）が表示されること
 	req = httptest.NewRequest("GET", "/partials/sidebar", nil)
 	rec = httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)

@@ -152,6 +152,70 @@ func TestProjectStalledReview(t *testing.T) {
 	}
 }
 
+func TestProjectTotalItemCountExcludesDone(t *testing.T) {
+	db, err := InitDB(setupTestDB(t))
+	if err != nil {
+		t.Fatalf("InitDB failed: %v", err)
+	}
+	defer db.Close()
+
+	pID, err := CreateProject(db, &model.Project{Name: "Routine"})
+	if err != nil {
+		t.Fatalf("CreateProject failed: %v", err)
+	}
+	due := time.Now().Format("2006-01-02")
+	recID, err := CreateItem(db, &model.Item{ProjectID: &pID, Title: "Daily report", Status: "next", DueDate: &due, Recurrence: "daily"})
+	if err != nil {
+		t.Fatalf("CreateItem failed: %v", err)
+	}
+	oneID, err := CreateItem(db, &model.Item{ProjectID: &pID, Title: "One-off", Status: "next"})
+	if err != nil {
+		t.Fatalf("CreateItem failed: %v", err)
+	}
+	if _, err := CreateItem(db, &model.Item{ProjectID: &pID, Title: "Memo", Status: "reference"}); err != nil {
+		t.Fatalf("CreateItem failed: %v", err)
+	}
+
+	// 繰り返しタスクを2回完了（完了ログが2件残り、次回インスタンスが1件）、単発タスクも完了
+	if _, err := UpdateItemStatus(db, recID, "done"); err != nil {
+		t.Fatalf("UpdateItemStatus failed: %v", err)
+	}
+	var nextID int64
+	if err := db.QueryRow(`SELECT id FROM items WHERE project_id = ? AND status = 'next' AND recurrence = 'daily'`, pID).Scan(&nextID); err != nil {
+		t.Fatalf("next recurring instance not found: %v", err)
+	}
+	if _, err := UpdateItemStatus(db, nextID, "done"); err != nil {
+		t.Fatalf("UpdateItemStatus failed: %v", err)
+	}
+	if _, err := UpdateItemStatus(db, oneID, "done"); err != nil {
+		t.Fatalf("UpdateItemStatus failed: %v", err)
+	}
+
+	p, err := GetProjectByID(db, pID)
+	if err != nil {
+		t.Fatalf("GetProjectByID failed: %v", err)
+	}
+	if p.TotalItemCount != 1 {
+		t.Errorf("expected TotalItemCount 1 (only the open recurring instance), got %d", p.TotalItemCount)
+	}
+
+	projects, err := GetProjects(db, "active")
+	if err != nil || len(projects) != 1 {
+		t.Fatalf("GetProjects failed: %v (len=%d)", err, len(projects))
+	}
+	if projects[0].TotalItemCount != 1 {
+		t.Errorf("GetProjects: expected TotalItemCount 1, got %d", projects[0].TotalItemCount)
+	}
+
+	review, err := GetActiveProjectsForReview(db)
+	if err != nil || len(review) != 1 {
+		t.Fatalf("GetActiveProjectsForReview failed: %v (len=%d)", err, len(review))
+	}
+	if review[0].TotalItemCount != 1 {
+		t.Errorf("GetActiveProjectsForReview: expected TotalItemCount 1, got %d", review[0].TotalItemCount)
+	}
+}
+
 func TestContextCRUD(t *testing.T) {
 	dbPath := setupTestDB(t)
 	db, err := InitDB(dbPath)
