@@ -280,11 +280,13 @@ func (h *Handler) UpdateItemStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = db.UpdateItemStatus(h.DB, id, newStatus)
+	updated, err := db.UpdateItemStatus(h.DB, id, newStatus)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// "undone" は完了前のステータスに解決されるので、以降は実際に設定した値を使う
+	newStatus = updated.Status
 
 	events := map[string]any{"itemChanged": true}
 	if prev.Status != newStatus {

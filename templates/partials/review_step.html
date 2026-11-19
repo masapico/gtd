@@ -26,14 +26,14 @@
     </div>
 
     <!-- Inbox Zero Message (shown when 0 items initially or after clearing all items) -->
-    <div id="step1-zero-state" class="review-card" style="text-align: center; padding: 40px 20px; background-color: #f0fdf4; border-color: #bbf7d0; {{if gt (len .InboxItems) 0}}display: none;{{end}}">
-      <svg viewBox="0 0 24 24" width="48" height="48" fill="#16a34a" style="margin-bottom: 12px;">
+    <div id="step1-zero-state" class="review-card" style="text-align: center; padding: 40px 20px; background-color: var(--gtd-green-50); border-color: var(--gtd-green-200-2); {{if gt (len .InboxItems) 0}}display: none;{{end}}">
+      <svg viewBox="0 0 24 24" width="48" height="48" style="fill: var(--gtd-green-700); margin-bottom: 12px;">
         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
       </svg>
-      <h3 style="color: #166534; font-size: 1.2rem; font-weight: 700;">Inbox Zero 達成！</h3>
-      <p style="color: #15803d; font-size: 0.9rem; margin-top: 6px;">未整理のアイテムはありません。次のステップへ進みましょう。</p>
+      <h3 style="color: var(--gtd-green-900-3); font-size: 1.2rem; font-weight: 700;">Inbox Zero 達成！</h3>
+      <p style="color: var(--gtd-green-800); font-size: 0.9rem; margin-top: 6px;">未整理のアイテムはありません。次のステップへ進みましょう。</p>
       <div style="margin-top: 20px;">
-        <button class="btn-small" style="padding: 10px 24px; font-size: 0.95rem; background-color: var(--md-sys-color-primary); color: #fff; font-weight: 600;" 
+        <button class="btn-small" style="padding: 10px 24px; font-size: 0.95rem; background-color: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); font-weight: 600;" 
                 hx-get="/review/step/2" 
                 hx-target="#main-content-pane">
           Step 2: プロジェクトの点検へ進む →
@@ -115,7 +115,7 @@
     </div>
 
     <div style="text-align: right; margin-top: 24px;">
-      <button class="btn-small" style="padding: 10px 24px; font-size: 0.95rem; background-color: var(--md-sys-color-primary); color: #fff; font-weight: 600;" 
+      <button class="btn-small" style="padding: 10px 24px; font-size: 0.95rem; background-color: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); font-weight: 600;" 
               hx-get="/review/step/3" 
               hx-target="#main-content-pane">
         Step 3: 保留項目の棚卸しへ進む →
@@ -134,13 +134,13 @@
 
     <!-- Stale Items Zero State -->
     <div id="step3-zero-state" class="review-card" style="text-align: center; padding: 40px 20px; {{if gt (len .StaleItems) 0}}display: none;{{end}}">
-      <svg viewBox="0 0 24 24" width="48" height="48" fill="#16a34a" style="margin-bottom: 12px;">
+      <svg viewBox="0 0 24 24" width="48" height="48" style="fill: var(--gtd-green-700); margin-bottom: 12px;">
         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
       </svg>
       <h3 style="font-size: 1.2rem; font-weight: 700;">棚卸しが必要なアイテムはありません！</h3>
       <p style="font-size: 0.9rem; color: var(--md-sys-color-on-surface-variant); margin-top: 6px;">Waiting / Someday はすべて最新状態に保たれています。</p>
       <div style="margin-top: 24px;">
-        <button class="btn-small" style="padding: 12px 28px; font-size: 1rem; background-color: var(--md-sys-color-primary); color: #fff; font-weight: 600;" 
+        <button class="btn-small" style="padding: 12px 28px; font-size: 1rem; background-color: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); font-weight: 600;" 
                 hx-get="/partials/items?view=next" 
                 hx-target="#main-content-pane">
           週次レビュー完了！ Next Actions を開く
@@ -206,7 +206,7 @@
       </div>
 
       <div style="text-align: right; margin-top: 24px;">
-        <button class="btn-small" style="padding: 12px 28px; font-size: 1rem; background-color: var(--md-sys-color-primary); color: #fff; font-weight: 600;" 
+        <button class="btn-small" style="padding: 12px 28px; font-size: 1rem; background-color: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); font-weight: 600;" 
                 hx-get="/partials/items?view=next" 
                 hx-target="#main-content-pane">
           週次レビュー完了！ Next Actions を開く

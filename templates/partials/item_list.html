@@ -1,6 +1,6 @@
 <div id="items-view-container" class="items-view-container"
      data-view="{{.View}}"{{if .CurrentProject}} data-project-id="{{.CurrentProject.ID}}"{{end}}{{if .CurrentContext}} data-context-id="{{.CurrentContext.ID}}"{{end}}
-     hx-get="/partials/items?view={{.View}}{{if .CurrentProject}}&project_id={{.CurrentProject.ID}}{{end}}{{if .CurrentContext}}&context_id={{.CurrentContext.ID}}{{end}}{{if .ProjectStatus}}&project_status={{.ProjectStatus}}{{end}}{{if .ItemStatusFilter}}&item_status={{.ItemStatusFilter}}{{end}}{{if .Search}}&search={{.Search}}{{end}}"
+     hx-get="/partials/items?view={{.View}}{{if .CurrentProject}}&project_id={{.CurrentProject.ID}}{{end}}{{if .CurrentContext}}&context_id={{.CurrentContext.ID}}{{end}}{{if .ProjectStatus}}&project_status={{.ProjectStatus}}{{end}}{{if .ItemStatusFilter}}&item_status={{.ItemStatusFilter}}{{end}}{{if .Search}}&search={{.Search}}{{end}}{{if .Limit}}&limit={{.Limit}}{{end}}"
      hx-trigger="itemChanged from:document, listRefresh from:document, contextChanged from:document, projectChanged from:document"
      hx-swap="outerHTML">
 <div class="content-header">
@@ -61,7 +61,7 @@
                    style="font-size: 0.85rem; padding: 5px 10px; flex: 1;">
             <button class="btn-small" 
                     type="submit" 
-                    style="background-color: var(--md-sys-color-primary); color: #fff; font-weight: 600; padding: 6px 14px;">
+                    style="background-color: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); font-weight: 600; padding: 6px 14px;">
               保存
             </button>
             <button class="btn-small" 
@@ -110,7 +110,7 @@
             </div>
 
             {{if eq .CurrentProject.Status "done"}}
-              <span class="badge" style="background-color: #d1e7dd; color: #0f5132; font-weight: 600;">完了済み</span>
+              <span class="badge" style="background-color: var(--gtd-green-200); color: var(--gtd-green-900); font-weight: 600;">完了済み</span>
               <button class="btn-small" 
                       hx-patch="/projects/{{.CurrentProject.ID}}/status" 
                       hx-vals='{"status": "active"}' 
@@ -126,7 +126,7 @@
                 保留(Someday)へ
               </button>
             {{else if eq .CurrentProject.Status "someday"}}
-              <span class="badge" style="background-color: #fff3cd; color: #664d03; font-weight: 600;">保留中</span>
+              <span class="badge" style="background-color: var(--gtd-amber-100-2); color: var(--gtd-amber-900); font-weight: 600;">保留中</span>
               <button class="btn-small" 
                       hx-patch="/projects/{{.CurrentProject.ID}}/status" 
                       hx-vals='{"status": "active"}' 
@@ -369,22 +369,22 @@
           <div id="project-card-view-{{.ID}}" style="flex: 1; min-width: 0;">
             <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
               {{if eq .Status "done"}}
-                <span class="badge" style="background-color: #d1e7dd; color: #0f5132; font-weight: 600;">完了</span>
+                <span class="badge" style="background-color: var(--gtd-green-200); color: var(--gtd-green-900); font-weight: 600;">完了</span>
               {{else if eq .Status "someday"}}
-                <span class="badge" style="background-color: #fff3cd; color: #664d03; font-weight: 600;">保留</span>
+                <span class="badge" style="background-color: var(--gtd-amber-100-2); color: var(--gtd-amber-900); font-weight: 600;">保留</span>
               {{else}}
-                <span class="badge" style="background-color: #e8f0fe; color: #1a73e8; font-weight: 600;">進行中</span>
+                <span class="badge" style="background-color: var(--gtd-blue-50); color: var(--gtd-blue-600); font-weight: 600;">進行中</span>
               {{end}}
               {{if .IsSequential}}
-                <span class="badge" style="background-color: #f3e8fd; color: #7b1fa2; font-weight: 600; font-size: 0.72rem;">順次実行</span>
+                <span class="badge" style="background-color: var(--gtd-violet-50-2); color: var(--gtd-purple-700-2); font-weight: 600; font-size: 0.72rem;">順次実行</span>
               {{else}}
-                <span class="badge" style="background-color: #eef2f6; color: #475569; font-weight: 500; font-size: 0.72rem;">並列</span>
+                <span class="badge" style="background-color: var(--gtd-slate-100-2); color: var(--gtd-slate-700); font-weight: 500; font-size: 0.72rem;">並列</span>
               {{end}}
               <strong style="font-size: 1rem;">{{.Name}}</strong>
               {{if .IsStalled}}
                 <span class="stalled-badge" style="font-size: 0.7rem; padding: 1px 6px;">Next Action 0件 (停滞中)</span>
               {{else if .IsWaitingOnly}}
-                <span class="badge" style="background-color: #e0f2fe; color: #0284c7; font-size: 0.7rem; padding: 1px 6px;">他者待ち中 ({{.WaitingCount}}件)</span>
+                <span class="badge" style="background-color: var(--gtd-sky-100); color: var(--gtd-sky-700); font-size: 0.7rem; padding: 1px 6px;">他者待ち中 ({{.WaitingCount}}件)</span>
               {{end}}
             </div>
             {{if .Description}}
@@ -427,7 +427,7 @@
                        style="font-size: 0.8rem; padding: 3px 6px; flex: 1;">
                 <button class="btn-small" 
                         type="submit" 
-                        style="background-color: var(--md-sys-color-primary); color: #fff; font-weight: 600; padding: 4px 10px;">
+                        style="background-color: var(--md-sys-color-primary); color: var(--md-sys-color-on-primary); font-weight: 600; padding: 4px 10px;">
                   保存
                 </button>
                 <button class="btn-small" 
@@ -557,115 +557,7 @@
           {{else}}
             <div class="scheduled-items-list">
               {{range .Items}}
-                <div class="item-card {{if eq .Status "done"}}done{{end}}" 
-                     hx-get="/items/{{.ID}}/detail" 
-                     hx-target="#item-detail-pane" 
-                     hx-swap="innerHTML"
-                     onclick="openDetailPane('{{.ID}}'); document.querySelectorAll('.item-card').forEach(c => c.classList.remove('selected')); this.classList.add('selected');">
-                  
-                  <!-- Checkbox -->
-                  <input 
-                    type="checkbox" 
-                    class="item-checkbox" 
-                    {{if eq .Status "done"}}checked{{end}} 
-                    hx-patch="/items/{{.ID}}/status" 
-                    hx-vals='{"status": "{{if eq .Status "done"}}next{{else}}done{{end}}"}' 
-                    hx-swap="none" 
-                    onclick="event.stopPropagation()"
-                    title="{{if eq .Status "done"}}未完了に戻す{{else}}完了にする{{end}}"
-                  >
-
-                  <!-- Main Info -->
-                  <div class="item-main-info">
-                    <div class="item-title">{{.Title}}</div>
-                    <div class="item-metadata">
-                      <!-- ステータスバッジ -->
-                      <span class="meta-tag tag-status {{.StatusBadgeClass}}">{{.StatusLabel}}</span>
-
-                      <!-- 繰り返し設定バッジ -->
-                      {{if ne .Recurrence "none"}}
-                        <span class="meta-tag tag-repeat" title="繰り返しタスク: {{.RecurrenceLabel}}">
-                          <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-                            <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
-                          </svg>
-                          <span>{{.RecurrenceLabel}}</span>
-                        </span>
-                      {{end}}
-
-                      <!-- 開始日バッジ -->
-                      {{if .StartDate}}
-                        <span class="meta-tag tag-start-date" title="開始日: {{.FormattedStartDate}} ({{.StartDisplay}})">
-                          <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-                            <path d="M8 5v14l11-7z"/>
-                          </svg>
-                          <span>{{.StartDisplay}}</span>
-                        </span>
-                      {{end}}
-
-                      <!-- 期限日バッジ -->
-                      {{if .DueDate}}
-                        <span class="meta-tag {{.DueDateClass}}" title="{{.DueTooltip}}">
-                          <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-                            <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/>
-                          </svg>
-                          <span>{{.DueDisplay}}</span>
-                        </span>
-                      {{end}}
-
-                      <!-- プロジェクトバッジ -->
-                      {{if .ProjectName}}
-                        <span class="meta-tag tag-project" 
-                              hx-get="/partials/items?project_id={{derefInt64 .ProjectID}}" 
-                              hx-target="#main-content-pane" 
-                              onclick="event.stopPropagation()" 
-                              title="プロジェクト: {{.ProjectName}}">
-                          <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-                            <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
-                          </svg>
-                          <span>{{.ProjectName}}</span>
-                        </span>
-                      {{end}}
-
-                      <!-- コンテキストタグ -->
-                      {{range .Contexts}}
-                        <span class="meta-tag tag-context">{{.Name}}</span>
-                      {{end}}
-
-                      <!-- 添付クリップ数 -->
-                      {{if gt .AttachCount 0}}
-                        <span class="meta-tag tag-attach" title="添付あり ({{.AttachCount}}件)">
-                          <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-                            <path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/>
-                          </svg>
-                          <span>{{.AttachCount}}</span>
-                        </span>
-                      {{end}}
-                    </div>
-                  </div>
-
-                  <!-- クイックトグルボタン (Next ⇄ Waiting) -->
-                  {{if or (eq .Status "next") (eq .Status "waiting")}}
-                    <button type="button" 
-                            class="item-quick-toggle-btn" 
-                            hx-patch="/items/{{.ID}}/status" 
-                            hx-vals='{"status": "{{.NextQuickToggleStatus}}"}' 
-                            hx-swap="none" 
-                            onclick="event.stopPropagation()" 
-                            title="{{.QuickToggleLabel}}">
-                      {{if eq .Status "next"}}
-                        <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-                          <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
-                        </svg>
-                        <span>Waitingへ</span>
-                      {{else}}
-                        <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
-                        </svg>
-                        <span>Nextへ</span>
-                      {{end}}
-                    </button>
-                  {{end}}
-                </div>
+                {{template "item_card" (dict "Item" . "View" $.View)}}
               {{end}}
             </div>
           {{end}}
@@ -713,47 +605,7 @@
               </summary>
               <div class="project-section-items">
                 {{range $sec.Items}}
-                  <div class="item-card done" 
-                       hx-get="/items/{{.ID}}/detail" 
-                       hx-target="#item-detail-pane" 
-                       hx-swap="innerHTML"
-                       onclick="openDetailPane('{{.ID}}'); document.querySelectorAll('.item-card').forEach(c => c.classList.remove('selected')); this.classList.add('selected');">
-                    <input 
-                      type="checkbox" 
-                      class="item-checkbox" 
-                      checked 
-                      hx-patch="/items/{{.ID}}/status" 
-                      hx-vals='{"status": "next"}' 
-                      hx-swap="none" 
-                      onclick="event.stopPropagation()"
-                      title="未完了に戻す"
-                    >
-                    <div class="item-main-info">
-                      <div class="item-title">{{.Title}}</div>
-                      <div class="item-metadata">
-                        <span class="meta-tag tag-status tag-status-done">Done</span>
-                        {{if .DueDate}}
-                          <span class="meta-tag {{.DueDateClass}}" title="{{.DueTooltip}}">
-                            <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-                              <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/>
-                            </svg>
-                            <span>{{.DueDisplay}}</span>
-                          </span>
-                        {{end}}
-                        {{range .Contexts}}
-                          <span class="meta-tag tag-context">{{.Name}}</span>
-                        {{end}}
-                        {{if gt .AttachCount 0}}
-                          <span class="meta-tag tag-attach" title="添付あり ({{.AttachCount}}件)">
-                            <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-                              <path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/>
-                            </svg>
-                            <span>{{.AttachCount}}</span>
-                          </span>
-                        {{end}}
-                      </div>
-                    </div>
-                  </div>
+                  {{template "item_card" (dict "Item" . "View" $.View)}}
                 {{end}}
               </div>
             </details>
@@ -791,7 +643,7 @@
                 <h2 class="project-section-title">{{$sec.Title}}</h2>
                 <span class="project-section-badge {{$sec.BadgeClass}}">{{$sec.Count}}件</span>
                 {{if eq $sec.ID "inbox"}}
-                  <span style="font-size: 0.75rem; color: #b78103; margin-left: 8px;">※未整理です。適したステータスへ仕分けてください</span>
+                  <span style="font-size: 0.75rem; color: var(--gtd-amber-700-2); margin-left: 8px;">※未整理です。適したステータスへ仕分けてください</span>
                 {{end}}
               </div>
               {{$reorderable := and $.CurrentProject (ne $.CurrentProject.Status "done") (ne $sec.ID "done")}}
@@ -800,138 +652,7 @@
                   <div class="project-section-empty">タスクはありません</div>
                 {{else}}
                   {{range $sec.Items}}
-                    <div class="item-card {{if eq .Status "done"}}done{{end}} {{if .IsBlocked}}is-blocked{{else if and $sec.Sequential (eq .Status "next")}}is-current-step{{end}}" 
-                         hx-get="/items/{{.ID}}/detail" 
-                         hx-target="#item-detail-pane" 
-                         hx-swap="innerHTML"
-                         onclick="openDetailPane('{{.ID}}'); document.querySelectorAll('.item-card').forEach(c => c.classList.remove('selected')); this.classList.add('selected');">
-                      
-                      <!-- ドラッグハンドル（同一セクション内の並び替え） -->
-                      {{if and $reorderable (ne .Status "done")}}
-                        <span class="drag-handle" title="ドラッグで並び替え（Alt+↑/↓ でも移動）" aria-hidden="true" onclick="event.stopPropagation()">
-                          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                            <path d="M9 4.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm6 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zM9 10.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm6 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zM9 16.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm6 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z"/>
-                          </svg>
-                        </span>
-                      {{end}}
-
-                      <!-- Step Number (順次実行プロジェクトの場合) -->
-                      {{if .StepNo}}
-                        <span class="step-no-badge {{if .IsBlocked}}blocked{{else}}current{{end}}" title="ステップ {{.StepNo}}{{if .IsBlocked}}（待機中）{{else}}（今実行可能）{{end}}">
-                          {{.StepNo}}
-                        </span>
-                      {{end}}
-
-                      <!-- Checkbox -->
-                      <input 
-                        type="checkbox" 
-                        class="item-checkbox" 
-                        {{if eq .Status "done"}}checked{{end}} 
-                        hx-patch="/items/{{.ID}}/status" 
-                        hx-vals='{"status": "{{if eq .Status "done"}}next{{else}}done{{end}}"}' 
-                        hx-swap="none" 
-                        onclick="event.stopPropagation()"
-                        title="{{if eq .Status "done"}}未完了に戻す{{else}}完了にする{{end}}"
-                      >
-
-                      <!-- Main Info -->
-                      <div class="item-main-info">
-                        <div class="item-title">
-                          {{.Title}}
-                          {{if .IsBlocked}}
-                            <span class="meta-tag tag-blocked" title="前のステップが完了するまで待機中です">
-                              <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor">
-                                <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
-                              </svg>
-                              <span>待機中</span>
-                            </span>
-                          {{end}}
-                        </div>
-                        <div class="item-metadata">
-                          <!-- ステータスバッジ -->
-                          <span class="meta-tag tag-status {{.StatusBadgeClass}}">{{.StatusLabel}}</span>
-
-                          <!-- 繰り返し設定バッジ -->
-                          {{if ne .Recurrence "none"}}
-                            <span class="meta-tag tag-repeat" title="繰り返しタスク: {{.RecurrenceLabel}}">
-                              <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-                                <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
-                              </svg>
-                              <span>{{.RecurrenceLabel}}</span>
-                            </span>
-                          {{end}}
-
-                          <!-- 開始日バッジ -->
-                          {{if .StartDate}}
-                            <span class="meta-tag tag-start-date" title="開始日: {{.FormattedStartDate}} ({{.StartDisplay}})">
-                              <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-                                <path d="M8 5v14l11-7z"/>
-                              </svg>
-                              <span>{{.StartDisplay}}</span>
-                            </span>
-                          {{end}}
-
-                          <!-- 期限日バッジ -->
-                          {{if .DueDate}}
-                            <span class="meta-tag {{.DueDateClass}}" title="{{.DueTooltip}}">
-                              <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-                                <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/>
-                              </svg>
-                              <span>{{.DueDisplay}}</span>
-                            </span>
-                          {{end}}
-
-                          <!-- コンテキストタグ -->
-                          {{range .Contexts}}
-                            <span class="meta-tag tag-context">{{.Name}}</span>
-                          {{end}}
-
-                          <!-- 添付クリップ数 -->
-                          {{if gt .AttachCount 0}}
-                            <span class="meta-tag tag-attach" title="添付あり ({{.AttachCount}}件)">
-                              <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-                                <path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/>
-                              </svg>
-                              <span>{{.AttachCount}}</span>
-                            </span>
-                          {{end}}
-                        </div>
-                      </div>
-
-                      <!-- カード右端のアクション群 -->
-                      <div class="item-card-right-actions" onclick="event.stopPropagation()">
-                        <!-- Inbox クイック仕分けボタン -->
-                        {{if eq .Status "inbox"}}
-                          <div class="inbox-triage-btns">
-                            <button type="button" class="btn-micro next" hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "next"}' hx-swap="none" title="Next Actionへ設定">Nextへ</button>
-                            <button type="button" class="btn-micro" hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "waiting"}' hx-swap="none" title="Waiting Forへ設定">Waitへ</button>
-                            <button type="button" class="btn-micro" hx-patch="/items/{{.ID}}/status" hx-vals='{"status": "someday"}' hx-swap="none" title="Somedayへ設定">保留へ</button>
-                          </div>
-                        {{end}}
-
-                        <!-- クイックトグルボタン (Next ⇄ Waiting) -->
-                        {{if or (eq .Status "next") (eq .Status "waiting")}}
-                          <button type="button" 
-                                  class="item-quick-toggle-btn" 
-                                  hx-patch="/items/{{.ID}}/status" 
-                                  hx-vals='{"status": "{{.NextQuickToggleStatus}}"}' 
-                                  hx-swap="none" 
-                                  title="{{.QuickToggleLabel}}">
-                            {{if eq .Status "next"}}
-                              <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-                                <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
-                              </svg>
-                              <span>Waitingへ</span>
-                            {{else}}
-                              <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
-                              </svg>
-                              <span>Nextへ</span>
-                            {{end}}
-                          </button>
-                        {{end}}
-                      </div>
-                    </div>
+                    {{template "item_card" (dict "Item" . "View" $.View "Reorderable" $reorderable "Sequential" $sec.Sequential)}}
                   {{end}}
                 {{end}}
               </div>
@@ -954,132 +675,105 @@
       {{end}}
     {{end}}
   </div>
+{{else if and (eq .View "done") (gt (len .Items) 0)}}
+  <!-- Done: 完了日時ごとに区切って表示 -->
+  <div class="items-list-container scheduled-container done-container">
+    {{range .DoneSections}}
+      <div class="scheduled-section-group" id="done-section-{{.ID}}">
+        <div class="scheduled-section-header">
+          <span class="scheduled-section-icon">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+              <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/>
+            </svg>
+          </span>
+          <h2 class="scheduled-section-title">{{.Title}}</h2>
+          <span class="scheduled-badge">{{len .Items}}件</span>
+        </div>
+        <div class="scheduled-items-list">
+          {{range .Items}}
+            {{template "item_card" (dict "Item" . "View" $.View)}}
+          {{end}}
+        </div>
+      </div>
+    {{end}}
+    {{if .DoneHasMore}}
+      <div class="done-more-row">
+        <a class="btn-small"
+           href="/?view=done&limit={{.DoneNextLimit}}"
+           hx-get="/partials/items?view=done&limit={{.DoneNextLimit}}{{if .CurrentContext}}&context_id={{.CurrentContext.ID}}{{end}}"
+           hx-target="#main-content-pane">さらに表示（{{.DoneNextLimit}} 件まで）</a>
+      </div>
+    {{end}}
+  </div>
 {{else}}
   <!-- Normal Items List -->
   <div class="items-list-container">
     {{if eq (len .Items) 0}}
-      <div class="empty-state">
-        <svg class="empty-icon" viewBox="0 0 24 24">
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm4.59-12.42L10 14.17l-2.59-2.58L6 13l4 4 8-8z"/>
-        </svg>
-        <p style="font-size: 1rem; font-weight: 500;">アイテムはありません</p>
-        <p style="font-size: 0.85rem; margin-top: 4px;">新しいタスクがあれば追加してください。</p>
-      </div>
+      {{template "item_list_empty" .}}
     {{else}}
       {{range .Items}}
-        <div class="item-card {{if eq .Status "done"}}done{{end}}" 
-             hx-get="/items/{{.ID}}/detail" 
-             hx-target="#item-detail-pane" 
-             hx-swap="innerHTML"
-             onclick="openDetailPane('{{.ID}}'); document.querySelectorAll('.item-card').forEach(c => c.classList.remove('selected')); this.classList.add('selected');">
-          
-          <!-- Checkbox -->
-          <input 
-            type="checkbox" 
-            class="item-checkbox" 
-            {{if eq .Status "done"}}checked{{end}} 
-            hx-patch="/items/{{.ID}}/status" 
-            hx-vals='{"status": "{{if eq .Status "done"}}next{{else}}done{{end}}"}' 
-            hx-swap="none" 
-            onclick="event.stopPropagation()"
-            title="{{if eq .Status "done"}}未完了に戻す{{else}}完了にする{{end}}"
-          >
-
-          <!-- Main Info -->
-          <div class="item-main-info">
-            <div class="item-title">{{.Title}}</div>
-            <div class="item-metadata">
-              <!-- ステータスバッジ（現在のビューと同じステータスなら冗長なので省略） -->
-              {{if ne .Status $.View}}
-                <span class="meta-tag tag-status {{.StatusBadgeClass}}">{{.StatusLabel}}</span>
-              {{end}}
-
-              <!-- 繰り返し設定バッジ -->
-              {{if ne .Recurrence "none"}}
-                <span class="meta-tag tag-repeat" title="繰り返しタスク: {{.RecurrenceLabel}}">
-                  <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-                    <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
-                  </svg>
-                  <span>{{.RecurrenceLabel}}</span>
-                </span>
-              {{end}}
-
-              <!-- 開始日バッジ -->
-              {{if .StartDate}}
-                <span class="meta-tag tag-start-date" title="開始日: {{.FormattedStartDate}} ({{.StartDisplay}})">
-                  <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-                    <path d="M8 5v14l11-7z"/>
-                  </svg>
-                  <span>{{.StartDisplay}}</span>
-                </span>
-              {{end}}
-
-              <!-- 期限日バッジ -->
-              {{if .DueDate}}
-                <span class="meta-tag {{.DueDateClass}}" title="{{.DueTooltip}}">
-                  <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-                    <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/>
-                  </svg>
-                  <span>{{.DueDisplay}}</span>
-                </span>
-              {{end}}
-
-              <!-- プロジェクトバッジ -->
-              {{if .ProjectName}}
-                <span class="meta-tag tag-project" 
-                      hx-get="/partials/items?project_id={{derefInt64 .ProjectID}}" 
-                      hx-target="#main-content-pane" 
-                      onclick="event.stopPropagation()" 
-                      title="プロジェクト: {{.ProjectName}}">
-                  <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-                    <path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
-                  </svg>
-                  <span>{{.ProjectName}}</span>
-                </span>
-              {{end}}
-
-              <!-- コンテキストタグ -->
-              {{range .Contexts}}
-                <span class="meta-tag tag-context">{{.Name}}</span>
-              {{end}}
-
-              <!-- 添付クリップ数 -->
-              {{if gt .AttachCount 0}}
-                <span class="meta-tag tag-attach" title="添付あり ({{.AttachCount}}件)">
-                  <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-                    <path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/>
-                  </svg>
-                  <span>{{.AttachCount}}</span>
-                </span>
-              {{end}}
-            </div>
-          </div>
-
-          <!-- クイックトグルボタン (Next ⇄ Waiting) -->
-          {{if or (eq .Status "next") (eq .Status "waiting")}}
-            <button type="button" 
-                    class="item-quick-toggle-btn" 
-                    hx-patch="/items/{{.ID}}/status" 
-                    hx-vals='{"status": "{{.NextQuickToggleStatus}}"}' 
-                    hx-swap="none" 
-                    onclick="event.stopPropagation()" 
-                    title="{{.QuickToggleLabel}}">
-              {{if eq .Status "next"}}
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-                  <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
-                </svg>
-                <span>Waitingへ</span>
-              {{else}}
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
-                </svg>
-                <span>Nextへ</span>
-              {{end}}
-            </button>
-          {{end}}
-        </div>
+        {{template "item_card" (dict "Item" . "View" $.View)}}
       {{end}}
     {{end}}
   </div>
 {{end}}
 </div>
+
+
+{{/* 通常リストの空状態（ビューごとに文言と次の行動への導線を変える） */}}
+{{define "item_list_empty"}}
+<div class="empty-state">
+  {{if .Search}}
+    <svg class="empty-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+    <p class="empty-title">「{{.Search}}」に一致するアイテムはありません</p>
+    <p class="empty-desc">別のキーワードで探すか、<kbd>Ctrl</kbd> + <kbd>F</kbd> の検索で全体から探せます。</p>
+  {{else if .CurrentContext}}
+    <svg class="empty-icon" viewBox="0 0 24 24"><path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z"/></svg>
+    <p class="empty-title">「{{.CurrentContext.Name}}」のタスクはありません</p>
+    <p class="empty-desc">詳細ペインの Context タグ、または Quick Capture の <code>#{{.CurrentContext.Name}}</code> で付けられます。</p>
+  {{else if eq .View "inbox"}}
+    <svg class="empty-icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm4.59-12.42L10 14.17l-2.59-2.58L6 13l4 4 8-8z"/></svg>
+    <p class="empty-title">Inbox Zero</p>
+    <p class="empty-desc">すべて仕分け済みです。気になることが浮かんだら <kbd>Ctrl</kbd> + <kbd>I</kbd> でいつでも書き出せます。</p>
+    {{if gt .Counts.Next 0}}
+      <div class="empty-actions">
+        <a class="btn-small" href="/?view=next" hx-get="/partials/items?view=next" hx-target="#main-content-pane">Next Actions を見る（{{.Counts.Next}}件）</a>
+      </div>
+    {{end}}
+  {{else if eq .View "next"}}
+    <svg class="empty-icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
+    <p class="empty-title">今すぐ実行できる行動はありません</p>
+    {{if gt .Counts.Inbox 0}}
+      <p class="empty-desc">Inbox に未整理のものが {{.Counts.Inbox}} 件あります。仕分けると、次の行動がここに並びます。</p>
+      <div class="empty-actions">
+        <a class="btn-small" href="/?view=inbox" hx-get="/partials/items?view=inbox" hx-target="#main-content-pane">Inbox を処理する（{{.Counts.Inbox}}件）</a>
+      </div>
+    {{else}}
+      <p class="empty-desc">プロジェクトごとに「次の一手」を決めておくと、ここに並びます。</p>
+      <div class="empty-actions">
+        <a class="btn-small" href="/?view=projects" hx-get="/partials/items?view=projects" hx-target="#main-content-pane">プロジェクトを見る</a>
+      </div>
+    {{end}}
+  {{else if eq .View "waiting"}}
+    <svg class="empty-icon" viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+    <p class="empty-title">待っているものはありません</p>
+    <p class="empty-desc">依頼・返信待ちのタスクは、カードの「Waitingへ」ボタンか <kbd>3</kbd> キーでここに移せます。</p>
+  {{else if eq .View "someday"}}
+    <svg class="empty-icon" viewBox="0 0 24 24"><path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z"/></svg>
+    <p class="empty-title">保留中のアイデアはありません</p>
+    <p class="empty-desc">今はやらないけれど捨てたくないことは、Inbox の「保留へ」か <kbd>4</kbd> キーでここに置いておけます。</p>
+  {{else if eq .View "reference"}}
+    <svg class="empty-icon" viewBox="0 0 24 24"><path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/></svg>
+    <p class="empty-title">資料・メモはありません</p>
+    <p class="empty-desc">行動を伴わない情報は、詳細ペインの「Ref」か <kbd>5</kbd> キーでここに保管できます。</p>
+  {{else if eq .View "done"}}
+    <svg class="empty-icon" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>
+    <p class="empty-title">まだ完了したタスクはありません</p>
+    <p class="empty-desc">カードのチェックボックスか <kbd>x</kbd> キーで完了にすると、ここに日付ごとに記録されます。</p>
+  {{else}}
+    <svg class="empty-icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm4.59-12.42L10 14.17l-2.59-2.58L6 13l4 4 8-8z"/></svg>
+    <p class="empty-title">アイテムはありません</p>
+    <p class="empty-desc">新しいタスクがあれば追加してください。</p>
+  {{end}}
+</div>
+{{end}}

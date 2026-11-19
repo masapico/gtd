@@ -23,7 +23,7 @@ var staticFS embed.FS
 var templateFS embed.FS
 
 // Version is the application version, injected at build time via -ldflags "-X main.Version=..."
-var Version = "dev"
+var Version = "0.5.0"
 
 func printUsage() {
 	fmt.Println("GTD - Getting Things Done Task Manager")

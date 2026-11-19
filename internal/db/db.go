@@ -138,6 +138,18 @@ func migrateSchema(db *sql.DB) error {
 		return err
 	}
 
+	// 完了日時と完了前ステータス（Done の区切り表示と、チェックを外したときの戻し先に使う）
+	if err := addColumnIfNotExists(db, "items", "completed_at", "DATETIME"); err != nil {
+		return err
+	}
+	if err := addColumnIfNotExists(db, "items", "prev_status", "TEXT"); err != nil {
+		return err
+	}
+	// 既存の完了済みアイテムは最終更新日時を完了日時とみなす
+	if _, err := db.Exec("UPDATE items SET completed_at = updated_at WHERE status = 'done' AND completed_at IS NULL;"); err != nil {
+		return err
+	}
+
 	// 既存アイテムの初期 sort_order を作成順（id）で設定
 	if _, err := db.Exec("UPDATE items SET sort_order = id WHERE sort_order = 0;"); err != nil {
 		return err

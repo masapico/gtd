@@ -34,6 +34,7 @@ func setupTestServer(t *testing.T) (*Handler, http.Handler, func()) {
 		"../../templates/layout.html",
 		"../../templates/partials/sidebar.html",
 		"../../templates/partials/item_list.html",
+		"../../templates/partials/item_card.html",
 		"../../templates/partials/item_detail.html",
 		"../../templates/partials/attachments.html",
 		"../../templates/partials/attachment_item.html",

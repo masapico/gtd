@@ -207,10 +207,17 @@ func GetItems(db *sql.DB, filter model.ItemFilter) ([]model.Item, error) {
 		// 期日昇順（期限切れ→今日→未来）、期日なしの開始日待ちタスクは後方で開始日昇順
 		orderBy = "CASE WHEN i.due_date IS NOT NULL AND i.due_date != '' THEN 0 ELSE 1 END, i.due_date ASC, i.start_date ASC, i.created_at ASC"
 	case "done":
-		orderBy = "i.updated_at DESC"
+		// 完了日時の新しい順（完了後にメモを直しても並びが変わらないように updated_at は使わない）
+		orderBy = "COALESCE(i.completed_at, i.updated_at) DESC, i.id DESC"
 	case "project":
 		// プロジェクトビュー: ステータス順（Inbox → Next → Waiting → Someday → Reference → Done）、各ステータス内は手動順 (sort_order ASC, id ASC)
 		orderBy = "CASE i.status WHEN 'inbox' THEN 1 WHEN 'next' THEN 2 WHEN 'waiting' THEN 3 WHEN 'someday' THEN 4 WHEN 'reference' THEN 5 ELSE 6 END, i.sort_order ASC, i.id ASC"
+	}
+
+	limitClause := ""
+	if filter.Limit > 0 {
+		limitClause = "LIMIT ?"
+		args = append(args, filter.Limit)
 	}
 
 	query := fmt.Sprintf(`
@@ -218,14 +225,16 @@ func GetItems(db *sql.DB, filter model.ItemFilter) ([]model.Item, error) {
 			i.id, i.project_id, COALESCE(p.name, '') AS project_name, 
 			i.title, COALESCE(i.body, '') AS body, i.status, 
 			i.sort_order, COALESCE(s.is_blocked, 0) AS is_blocked,
-			i.start_date, i.due_date, i.recurrence, i.last_reviewed_at, i.created_at, i.updated_at,
+			i.start_date, i.due_date, i.recurrence, i.last_reviewed_at, i.completed_at, COALESCE(i.prev_status, ''),
+			i.created_at, i.updated_at,
 			(SELECT COUNT(*) FROM attachments a WHERE a.item_id = i.id) AS attach_count
 		FROM items i
 		LEFT JOIN projects p ON i.project_id = p.id
 		LEFT JOIN item_state s ON i.id = s.id
 		%s
 		ORDER BY %s
-	`, whereClause, orderBy)
+		%s
+	`, whereClause, orderBy, limitClause)
 
 	rows, err := db.Query(query, args...)
 	if err != nil {
@@ -240,17 +249,21 @@ func GetItems(db *sql.DB, filter model.ItemFilter) ([]model.Item, error) {
 		var sDate sql.NullString
 		var dDate sql.NullString
 		var lRev sql.NullTime
+		var cAt sql.NullTime
 
 		err := rows.Scan(
 			&it.ID, &pID, &it.ProjectName,
 			&it.Title, &it.Body, &it.Status,
 			&it.SortOrder, &it.IsBlocked,
-			&sDate, &dDate, &it.Recurrence, &lRev,
+			&sDate, &dDate, &it.Recurrence, &lRev, &cAt, &it.PrevStatus,
 			&it.CreatedAt, &it.UpdatedAt,
 			&it.AttachCount,
 		)
 		if err != nil {
 			return nil, err
+		}
+		if cAt.Valid {
+			it.CompletedAt = &cAt.Time
 		}
 
 		if pID.Valid {
@@ -303,7 +316,8 @@ func GetItemByID(db *sql.DB, id int64) (*model.Item, error) {
 			i.id, i.project_id, COALESCE(p.name, '') AS project_name, 
 			i.title, COALESCE(i.body, '') AS body, i.status, 
 			i.sort_order, COALESCE(s.is_blocked, 0) AS is_blocked,
-			i.start_date, i.due_date, i.recurrence, i.last_reviewed_at, i.created_at, i.updated_at
+			i.start_date, i.due_date, i.recurrence, i.last_reviewed_at, i.completed_at, COALESCE(i.prev_status, ''),
+			i.created_at, i.updated_at
 		FROM items i
 		LEFT JOIN projects p ON i.project_id = p.id
 		LEFT JOIN item_state s ON i.id = s.id
@@ -315,16 +329,20 @@ func GetItemByID(db *sql.DB, id int64) (*model.Item, error) {
 	var sDate sql.NullString
 	var dDate sql.NullString
 	var lRev sql.NullTime
+	var cAt sql.NullTime
 
 	err := row.Scan(
 		&it.ID, &pID, &it.ProjectName,
 		&it.Title, &it.Body, &it.Status,
 		&it.SortOrder, &it.IsBlocked,
-		&sDate, &dDate, &it.Recurrence, &lRev,
+		&sDate, &dDate, &it.Recurrence, &lRev, &cAt, &it.PrevStatus,
 		&it.CreatedAt, &it.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
+	}
+	if cAt.Valid {
+		it.CompletedAt = &cAt.Time
 	}
 
 	if pID.Valid {
@@ -440,19 +458,42 @@ func UpdateItem(db *sql.DB, item *model.Item) error {
 
 	_, err := db.Exec(`
 		UPDATE items
-		SET project_id = ?, title = ?, body = ?, status = ?, start_date = ?, due_date = ?, recurrence = ?,
+		SET project_id = ?, title = ?, body = ?, start_date = ?, due_date = ?, recurrence = ?,
 		    sort_order = CASE WHEN ? > 0 THEN ? ELSE sort_order END,
+		    `+statusTransitionSet+`,
 		    updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
-	`, item.ProjectID, item.Title, item.Body, item.Status, item.StartDate, item.DueDate, item.Recurrence, item.SortOrder, item.SortOrder, item.ID)
+	`, item.ProjectID, item.Title, item.Body, item.StartDate, item.DueDate, item.Recurrence, item.SortOrder, item.SortOrder,
+		item.Status, item.Status, item.Status, item.ID)
 	return err
 }
 
-// UpdateItemStatus はステータスを変更します。繰り返しタスクが 'done' になった場合は次期タスクを自動生成します
+// statusTransitionSet は status を更新する UPDATE 文の SET 句に加える完了日時・完了前ステータスの記録です。
+// 新しい status を 3 回バインドして使います（SET 句の右辺の status は更新前の値を指す）。
+//   - 他のステータス → done: completed_at に現在日時、prev_status に完了前のステータスを記録
+//   - done → 他のステータス: completed_at を消す
+const statusTransitionSet = `completed_at = CASE WHEN ? = 'done' THEN CASE WHEN status = 'done' THEN completed_at ELSE CURRENT_TIMESTAMP END ELSE NULL END,
+		    prev_status = CASE WHEN ? = 'done' AND status != 'done' THEN status ELSE prev_status END,
+		    status = ?`
+
+// StatusUndone は「完了を取り消して完了前のステータスへ戻す」ことを表す、UpdateItemStatus 専用の指定値です
+const StatusUndone = "undone"
+
+// UpdateItemStatus はステータスを変更します。繰り返しタスクが 'done' になった場合は次期タスクを自動生成します。
+// newStatus に StatusUndone を渡すと、完了前のステータス（記録がなければ next）へ戻します。
+// 戻り値の Item.Status は実際に設定したステータスです。
 func UpdateItemStatus(db *sql.DB, id int64, newStatus string) (*model.Item, error) {
 	it, err := GetItemByID(db, id)
 	if err != nil {
 		return nil, err
+	}
+
+	if newStatus == StatusUndone {
+		newStatus = "next"
+		switch it.PrevStatus {
+		case "inbox", "next", "waiting", "someday", "reference":
+			newStatus = it.PrevStatus
+		}
 	}
 
 	// 繰り返しタスクが完了（done）された場合、次期タスクを自動生成
@@ -489,9 +530,9 @@ func UpdateItemStatus(db *sql.DB, id int64, newStatus string) (*model.Item, erro
 
 	_, err = db.Exec(`
 		UPDATE items
-		SET status = ?, updated_at = CURRENT_TIMESTAMP
+		SET `+statusTransitionSet+`, updated_at = CURRENT_TIMESTAMP
 		WHERE id = ?
-	`, newStatus, id)
+	`, newStatus, newStatus, newStatus, id)
 	if err != nil {
 		return nil, err
 	}

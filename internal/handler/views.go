@@ -35,6 +35,10 @@ type ItemListData struct {
 	Items             []model.Item
 	ScheduledSections []model.ScheduledSection
 	ProjectSections   []model.ProjectSection
+	DoneSections      []model.DoneSection
+	DoneHasMore       bool // Done ビューで表示上限より古い完了済みが残っているか
+	DoneNextLimit     int  // 「さらに表示」で指定する表示上限
+	Limit             int  // URL で指定された表示上限（既定値なら 0）
 	ProjectStats      model.ProjectStats
 	ItemStatusFilter  string
 	Contexts          []model.Context
@@ -62,7 +66,7 @@ func (h *Handler) buildSidebarData(view string, selectedProjectID int64) Sidebar
 	}
 }
 
-func (h *Handler) buildItemListData(view string, pID *int64, cID *int64, search string, projectStatus string, itemStatusFilter string) (ItemListData, error) {
+func (h *Handler) buildItemListData(view string, pID *int64, cID *int64, search string, projectStatus string, itemStatusFilter string, limit int) (ItemListData, error) {
 	if view == "" {
 		view = "inbox"
 	}
@@ -90,15 +94,26 @@ func (h *Handler) buildItemListData(view string, pID *int64, cID *int64, search 
 			return ItemListData{}, err
 		}
 	} else {
-		items, err = db.GetItems(h.DB, model.ItemFilter{
+		filter := model.ItemFilter{
 			View:      view,
 			ProjectID: pID,
 			ContextID: cID,
 			Search:    search,
-		})
+		}
+		if view == "done" {
+			// 1 件多く取得して、続きがあるか判定する
+			filter.Limit = doneLimit(limit) + 1
+		}
+		items, err = db.GetItems(h.DB, filter)
 		if err != nil {
 			return ItemListData{}, err
 		}
+	}
+
+	var doneHasMore bool
+	if view == "done" && len(items) > doneLimit(limit) {
+		doneHasMore = true
+		items = items[:doneLimit(limit)]
 	}
 
 	var currentProject *model.Project
@@ -122,6 +137,7 @@ func (h *Handler) buildItemListData(view string, pID *int64, cID *int64, search 
 	var scheduledSections []model.ScheduledSection
 	var projectSections []model.ProjectSection
 	var projectStats model.ProjectStats
+	var doneSections []model.DoneSection
 
 	switch view {
 	case "next":
@@ -222,6 +238,7 @@ func (h *Handler) buildItemListData(view string, pID *int64, cID *int64, search 
 	case "done":
 		title = "Done"
 		description = "完了したタスクの記録・業務履歴。"
+		doneSections = groupDoneItems(items, time.Now())
 	case "project":
 		if currentProject != nil {
 			title = currentProject.Name
@@ -419,6 +436,10 @@ func (h *Handler) buildItemListData(view string, pID *int64, cID *int64, search 
 		Items:             items,
 		ScheduledSections: scheduledSections,
 		ProjectSections:   projectSections,
+		DoneSections:      doneSections,
+		DoneHasMore:       doneHasMore,
+		DoneNextLimit:     doneLimit(limit) + doneDefaultLimit,
+		Limit:             explicitLimit(limit),
 		ProjectStats:      projectStats,
 		ItemStatusFilter:  itemStatusFilter,
 		Contexts:          contexts,
@@ -431,6 +452,74 @@ func (h *Handler) buildItemListData(view string, pID *int64, cID *int64, search 
 		ProjectStatus:     projectStatus,
 		Counts:            counts,
 	}, nil
+}
+
+// doneDefaultLimit は Done ビューで一度に表示する件数です（「さらに表示」で同じ件数ずつ増やす）
+const doneDefaultLimit = 100
+
+// doneLimit は URL で指定された表示上限を正規化します（未指定・不正値は既定値）
+func doneLimit(limit int) int {
+	if limit <= 0 {
+		return doneDefaultLimit
+	}
+	return limit
+}
+
+// explicitLimit は既定値と異なる表示上限だけを返します（一覧の再取得 URL に引き継ぐため）
+func explicitLimit(limit int) int {
+	if limit <= 0 || limit == doneDefaultLimit {
+		return 0
+	}
+	return limit
+}
+
+// parseLimit はクエリパラメータ limit を読み取ります（不正値は 0）
+func parseLimit(r *http.Request) int {
+	n, err := strconv.Atoi(r.URL.Query().Get("limit"))
+	if err != nil || n < 0 {
+		return 0
+	}
+	return n
+}
+
+// groupDoneItems は完了日時の新しい順に並んだアイテムを、今日 / 昨日 / 今週 / 先週 / 月別に区切ります。
+// 週は月曜始まり。完了日時が無い古いデータは更新日時で代用します。
+func groupDoneItems(items []model.Item, now time.Time) []model.DoneSection {
+	now = now.In(time.Local)
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
+	yesterday := today.AddDate(0, 0, -1)
+	weekStart := today.AddDate(0, 0, -((int(today.Weekday()) + 6) % 7))
+	lastWeekStart := weekStart.AddDate(0, 0, -7)
+
+	var sections []model.DoneSection
+	for _, it := range items {
+		t := it.UpdatedAt
+		if it.CompletedAt != nil {
+			t = *it.CompletedAt
+		}
+		t = t.In(time.Local)
+
+		var id, title string
+		switch {
+		case !t.Before(today):
+			id, title = "today", "今日"
+		case !t.Before(yesterday):
+			id, title = "yesterday", "昨日"
+		case !t.Before(weekStart):
+			id, title = "this_week", "今週"
+		case !t.Before(lastWeekStart):
+			id, title = "last_week", "先週"
+		default:
+			id, title = t.Format("month-2006-01"), fmt.Sprintf("%d年%d月", t.Year(), int(t.Month()))
+		}
+
+		if n := len(sections); n > 0 && sections[n-1].ID == id {
+			sections[n-1].Items = append(sections[n-1].Items, it)
+			continue
+		}
+		sections = append(sections, model.DoneSection{ID: id, Title: title, Items: []model.Item{it}})
+	}
+	return sections
 }
 
 // ServeIndex は初回アクセス時の3ペイン全体レイアウトを描画します
@@ -471,7 +560,7 @@ func (h *Handler) ServeIndex(w http.ResponseWriter, r *http.Request) {
 	itemStatus := r.URL.Query().Get("item_status")
 
 	sidebarData := h.buildSidebarData(view, selectedID)
-	itemListData, err := h.buildItemListData(view, pID, cID, search, projectStatus, itemStatus)
+	itemListData, err := h.buildItemListData(view, pID, cID, search, projectStatus, itemStatus, parseLimit(r))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -526,7 +615,7 @@ func (h *Handler) ServeItemList(w http.ResponseWriter, r *http.Request) {
 	projectStatus := r.URL.Query().Get("project_status")
 	itemStatus := r.URL.Query().Get("item_status")
 
-	data, err := h.buildItemListData(view, pID, cID, search, projectStatus, itemStatus)
+	data, err := h.buildItemListData(view, pID, cID, search, projectStatus, itemStatus, parseLimit(r))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

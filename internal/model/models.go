@@ -77,6 +77,8 @@ type Item struct {
 	DueDate        *string      `json:"due_date"`
 	Recurrence     string       `json:"recurrence"` // 'none', 'daily', 'weekdays', 'weekly', 'monthly', 'yearly'
 	LastReviewedAt *time.Time   `json:"last_reviewed_at"`
+	CompletedAt    *time.Time   `json:"completed_at"` // done になった日時（done 以外では nil）
+	PrevStatus     string       `json:"prev_status"`  // done になる直前のステータス（チェックを外したときの戻し先）
 	CreatedAt      time.Time    `json:"created_at"`
 	UpdatedAt      time.Time    `json:"updated_at"`
 	Contexts       []Context    `json:"contexts"`
@@ -377,6 +379,13 @@ type ScheduledSection struct {
 	Items      []Item `json:"items"`
 }
 
+// DoneSection は Done ビューで完了日時ごと（今日 / 昨日 / 今週 / 先週 / 月別）にまとめた区切りです
+type DoneSection struct {
+	ID    string `json:"id"`    // 'today', 'yesterday', 'this_week', 'last_week', 'month-2026-10'
+	Title string `json:"title"` // '今日', '2026年10月' など
+	Items []Item `json:"items"`
+}
+
 // ProjectSection はプロジェクトビューでアイテムをステータス別（Next, Waiting, Someday, Done）にグループ表示するための構造体です
 type ProjectSection struct {
 	ID             string `json:"id"`          // 'next', 'waiting', 'someday', 'reference', 'done', 'sequential_steps', 'inbox'
@@ -412,6 +421,7 @@ type ItemFilter struct {
 	ProjectID *int64
 	ContextID *int64
 	Search    string
+	Limit     int // 0 なら無制限
 }
 
 // Launcher はよく使うアプリやファイル、URLを開くためのショートカットを表します

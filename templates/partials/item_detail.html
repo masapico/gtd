@@ -12,6 +12,9 @@
       <span>アイテム詳細</span>
     </div>
     <div class="detail-header-actions">
+      <!-- 自動保存の状態（保存中… / 保存済み HH:MM / 保存に失敗しました） -->
+      <span id="detail-save-status" class="detail-save-status" role="status" aria-live="polite"></span>
+
       <!-- Delete Button -->
       <button class="icon-btn danger" 
               type="button"
@@ -56,8 +59,8 @@
   </div>
 
   {{if .Item.IsBlocked}}
-    <div class="detail-blocked-banner" style="margin: 0 16px 8px; padding: 8px 12px; background-color: #f1f5f9; border-left: 3px solid #64748b; border-radius: 4px; display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: #334155;">
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="color: #64748b; flex-shrink: 0;">
+    <div class="detail-blocked-banner" style="margin: 0 16px 8px; padding: 8px 12px; background-color: var(--gtd-slate-50); border-left: 3px solid var(--gtd-slate-600); border-radius: 4px; display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--gtd-slate-800);">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="color: var(--gtd-slate-600); flex-shrink: 0;">
         <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
       </svg>
       <div>このタスクは順次プロジェクトの<strong>待機中ステップ</strong>です。前のステップが完了すると自動的に実行可能になります（ステータスはNextのままです）。</div>
@@ -119,9 +122,9 @@
       <!-- 完了は最も頻繁な終着点なので、他ステータスと分けて主要アクションとして配置 -->
       {{if eq .Item.Status "done"}}
         <button type="button" class="detail-done-btn is-done"
-                hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "next"}'
+                hx-patch="/items/{{.Item.ID}}/status" hx-vals='{"status": "undone"}'
                 hx-target="#item-detail-pane" hx-swap="innerHTML"
-                title="未完了 (Next) に戻す">
+                title="完了前のステータス ({{if .Item.PrevStatus}}{{.Item.PrevStatus}}{{else}}next{{end}}) に戻す">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
             <path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/>
           </svg>
@@ -190,6 +193,11 @@
               <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
             </button>
           </div>
+          <div class="date-chips" role="group" aria-label="日付をすばやく設定">
+            <button type="button" class="date-chip" onclick="setDateField('detail-start', 'today')">今日</button>
+            <button type="button" class="date-chip" onclick="setDateField('detail-start', 'tomorrow')">明日</button>
+            <button type="button" class="date-chip" onclick="setDateField('detail-start', 'next-monday')">来週月曜</button>
+          </div>
         </div>
         <div class="form-group">
           <label class="form-label" for="detail-due">
@@ -206,6 +214,11 @@
               <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
             </button>
           </div>
+          <div class="date-chips" role="group" aria-label="日付をすばやく設定">
+            <button type="button" class="date-chip" onclick="setDateField('detail-due', 'today')">今日</button>
+            <button type="button" class="date-chip" onclick="setDateField('detail-due', 'tomorrow')">明日</button>
+            <button type="button" class="date-chip" onclick="setDateField('detail-due', 'next-monday')">来週月曜</button>
+          </div>
         </div>
       </div>
 
@@ -219,7 +232,7 @@
       {{end}}
 
       <!-- Recurrence（使用頻度が低いので折りたたむ。設定済みなら展開） -->
-      <details class="detail-options" {{if ne .Item.Recurrence "none"}}open{{end}}>
+      <details id="detail-recurrence-options" class="detail-options" {{if ne .Item.Recurrence "none"}}open{{end}}>
         <summary class="detail-options-summary">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
             <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
@@ -242,8 +255,9 @@
 
       <!-- Body / Note (Collapsible by default) -->
       <div class="form-group">
-        <details id="detail-body-accordion" class="detail-body-accordion" ontoggle="onDetailBodyToggle(this)">
-          <summary class="detail-body-summary">
+        <!-- メモがあれば最初から展開する -->
+        <details id="detail-body-accordion" class="detail-body-accordion" {{if .Item.Body}}open{{end}} ontoggle="onDetailBodyToggle(this)">
+          <summary class="detail-body-summary" onclick="this.parentElement.dataset.userToggled = '1'">
             <div class="summary-title-area">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
                 <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 2 2h18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>

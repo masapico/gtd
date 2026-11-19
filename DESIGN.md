@@ -41,6 +41,8 @@ CREATE TABLE items (
     due_date DATE, -- 厳密な締切があるもののみ設定
     recurrence TEXT NOT NULL DEFAULT 'none',
     last_reviewed_at DATETIME,
+    completed_at DATETIME, -- done になった日時（done 以外では NULL）。Done ビューの区切りと並び順に使う
+    prev_status TEXT, -- done になる直前のステータス。チェックを外したとき（status=undone）の戻し先
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

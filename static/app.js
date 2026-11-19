@@ -636,6 +636,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 // 3. 詳細ペインの開閉制御
+// アイテムカードのクリック: 詳細ペインを開き、カードを選択状態にする（詳細の取得はカードの hx-get が行う）
+function onItemCardClick(card) {
+  openDetailPane(cardItemId(card));
+  document.querySelectorAll('.item-card.selected').forEach(c => c.classList.remove('selected'));
+  card.classList.add('selected');
+}
+
 function openDetailPane(itemId) {
   const detailPane = document.getElementById('item-detail-pane');
   if (detailPane) {
@@ -1057,12 +1064,14 @@ function toggleProjectCardEdit(id, show) {
 }
 
 // 9. 詳細メモ・手順の開閉とプレビュー同期
+// 初期表示（メモがあると open 属性付きで描画される）でも toggle は発火するため、
+// ユーザーが summary をクリックして開いたときだけ textarea へフォーカスする
 function onDetailBodyToggle(detailsEl) {
-  if (detailsEl && detailsEl.open) {
-    const textarea = document.getElementById('detail-body');
-    if (textarea) {
-      textarea.focus();
-    }
+  if (!detailsEl) return;
+  const userToggled = detailsEl.dataset.userToggled === '1';
+  delete detailsEl.dataset.userToggled;
+  if (detailsEl.open && userToggled) {
+    document.getElementById('detail-body')?.focus();
   }
 }
 
@@ -1087,6 +1096,30 @@ function syncDateFieldEmpty(input) {
   if (field) field.toggleAttribute('data-empty', !input.value);
 }
 
+// 日付のクイックチップ（今日 / 明日 / 来週月曜）。値を入れて change を発火し、既存の自動保存に乗せる
+function localDateString(d) {
+  // toISOString は UTC になるため使わない
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function quickDate(kind, base = new Date()) {
+  const d = new Date(base.getFullYear(), base.getMonth(), base.getDate());
+  if (kind === 'tomorrow') d.setDate(d.getDate() + 1);
+  if (kind === 'next-monday') d.setDate(d.getDate() + (((8 - d.getDay()) % 7) || 7));
+  return localDateString(d);
+}
+
+function setDateField(inputId, kind) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const value = quickDate(kind);
+  if (input.value === value) return;
+  input.value = value;
+  syncDateFieldEmpty(input);
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
 function clearDateField(inputId) {
   const input = document.getElementById(inputId);
   if (!input || !input.value) return;
@@ -1094,6 +1127,141 @@ function clearDateField(inputId) {
   syncDateFieldEmpty(input);
   input.dispatchEvent(new Event('change', { bubbles: true }));
 }
+
+// 9-3. 詳細ペインの再描画（ステータス・タグ変更など）で、開閉状態とフォーカス・カーソル位置を保つ
+const DETAIL_STATE_TTL_MS = 5000;
+let detailStateSnapshot = null;
+
+function swapTargetElement(e) {
+  const t = e.detail?.ctx?.target ?? e.detail?.target;
+  if (!t) return null;
+  return typeof t === 'string' ? document.querySelector(t) : t;
+}
+
+function captureDetailState(e) {
+  const target = swapTargetElement(e);
+  if (!target || target.id !== 'item-detail-pane') return;
+  const content = document.getElementById('item-detail-content');
+  if (!content) return;
+
+  const active = document.activeElement;
+  const focus = active && content.contains(active) && active.id ? {
+    id: active.id,
+    start: typeof active.selectionStart === 'number' ? active.selectionStart : null,
+    end: typeof active.selectionEnd === 'number' ? active.selectionEnd : null,
+  } : null;
+
+  detailStateSnapshot = {
+    itemId: content.dataset.itemId,
+    at: Date.now(),
+    open: Object.fromEntries([...content.querySelectorAll('details[id]')].map(d => [d.id, d.open])),
+    focus,
+  };
+}
+
+function restoreDetailState() {
+  const snap = detailStateSnapshot;
+  if (!snap) return;
+  const content = document.getElementById('item-detail-content');
+  if (!content) return;
+  detailStateSnapshot = null;
+  if (content.dataset.itemId !== snap.itemId || Date.now() - snap.at > DETAIL_STATE_TTL_MS) return;
+
+  for (const [id, open] of Object.entries(snap.open)) {
+    const d = document.getElementById(id);
+    if (d && d.open !== open) d.open = open;
+  }
+  if (snap.focus) {
+    const el = document.getElementById(snap.focus.id);
+    if (el) {
+      el.focus({ preventScroll: true });
+      if (snap.focus.start !== null && typeof el.setSelectionRange === 'function') {
+        try { el.setSelectionRange(snap.focus.start, snap.focus.end); } catch (_) { /* type=date 等は非対応 */ }
+      }
+    }
+  }
+}
+
+document.addEventListener('htmx:before:swap', captureDetailState);
+document.addEventListener('htmx:beforeSwap', captureDetailState);
+document.addEventListener('htmx:after:swap', restoreDetailState);
+document.addEventListener('htmx:afterSwap', restoreDetailState);
+
+// 9-4. 自動保存の状態表示（保存中… / 保存済み HH:MM / 保存に失敗しました）
+function setDetailSaveStatus(state) {
+  const el = document.getElementById('detail-save-status');
+  if (!el) return;
+  el.dataset.state = state;
+  if (state === 'saving') {
+    el.textContent = '保存中…';
+  } else if (state === 'saved') {
+    const now = new Date();
+    el.textContent = `保存済み ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  } else {
+    el.textContent = '保存に失敗しました';
+  }
+}
+
+function isDetailFormRequest(e) {
+  const src = e.detail?.ctx?.sourceElement ?? e.detail?.elt ?? e.target;
+  return !!src?.closest?.('form.detail-form');
+}
+
+function onDetailSaveStart(e) {
+  if (isDetailFormRequest(e)) setDetailSaveStatus('saving');
+}
+
+function onDetailSaveEnd(e) {
+  if (!isDetailFormRequest(e)) return;
+  const status = e.detail?.ctx?.response?.status ?? e.detail?.xhr?.status ?? 0;
+  setDetailSaveStatus(status >= 200 && status < 400 ? 'saved' : 'error');
+}
+
+function onDetailSaveError(e) {
+  if (isDetailFormRequest(e)) setDetailSaveStatus('error');
+}
+
+document.addEventListener('htmx:before:request', onDetailSaveStart);
+document.addEventListener('htmx:beforeRequest', onDetailSaveStart);
+document.addEventListener('htmx:after:request', onDetailSaveEnd);
+document.addEventListener('htmx:afterRequest', onDetailSaveEnd);
+document.addEventListener('htmx:error', onDetailSaveError);
+
+// 9-5. テーマ切り替え（システム → ライト → ダーク）。初期反映は layout.html の <head> 内スクリプトが行う
+const THEME_ORDER = ['system', 'light', 'dark'];
+const THEME_LABELS = { system: 'システム設定に合わせる', light: 'ライト', dark: 'ダーク' };
+const darkSchemeQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+
+function currentThemePref() {
+  const pref = document.documentElement.dataset.themePref;
+  return THEME_ORDER.includes(pref) ? pref : 'system';
+}
+
+function applyTheme(pref) {
+  const root = document.documentElement;
+  root.dataset.themePref = pref;
+  if (pref === 'system') delete root.dataset.theme;
+  else root.dataset.theme = pref;
+
+  const isDark = pref === 'dark' || (pref === 'system' && !!darkSchemeQuery?.matches);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', isDark ? '#111418' : '#00639b');
+
+  const btn = document.getElementById('theme-toggle-btn');
+  if (btn) btn.title = `テーマ: ${THEME_LABELS[pref]}（クリックで切り替え）`;
+}
+
+function cycleTheme() {
+  const next = THEME_ORDER[(THEME_ORDER.indexOf(currentThemePref()) + 1) % THEME_ORDER.length];
+  try {
+    if (next === 'system') localStorage.removeItem('gtd_theme');
+    else localStorage.setItem('gtd_theme', next);
+  } catch (_) { /* 保存できなくても、このページ内では切り替える */ }
+  applyTheme(next);
+  showToast(`テーマ: ${THEME_LABELS[next]}`);
+}
+
+document.addEventListener('DOMContentLoaded', () => applyTheme(currentThemePref()));
+darkSchemeQuery?.addEventListener?.('change', () => applyTheme(currentThemePref()));
 
 // 10. モーダルダイアログ制御 (ランチャー管理など)
 function openModal() {
