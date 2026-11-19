@@ -76,6 +76,7 @@ func setupTestServer(t *testing.T) (*Handler, http.Handler, func()) {
 	mux.HandleFunc("POST /projects", h.CreateProject)
 	mux.HandleFunc("PUT /projects/{id}", h.UpdateProject)
 	mux.HandleFunc("PATCH /projects/{id}/status", h.UpdateProjectStatus)
+	mux.HandleFunc("POST /projects/{id}/reorder", h.ReorderProjectItems)
 	mux.HandleFunc("DELETE /projects/{id}", h.DeleteProject)
 	mux.HandleFunc("POST /contexts", h.CreateContext)
 	mux.HandleFunc("PUT /contexts/{id}", h.UpdateContext)
@@ -2130,5 +2131,68 @@ func TestIndexRestoresViewFromURL(t *testing.T) {
 		if strings.Contains(c.path, "view=review") && strings.Contains(body, `id="items-view-container"`) {
 			t.Errorf("GET %s: review page should not render the item list", c.path)
 		}
+	}
+}
+
+func TestReorderProjectItems(t *testing.T) {
+	h, mux, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	pID, err := db.CreateProject(h.DB, &model.Project{Name: "Reorder", Type: "parallel", Status: "active"})
+	if err != nil {
+		t.Fatalf("CreateProject failed: %v", err)
+	}
+	var ids []int64
+	for _, title := range []string{"A", "B", "C"} {
+		id, err := db.CreateItem(h.DB, &model.Item{ProjectID: &pID, Title: title, Status: "next"})
+		if err != nil {
+			t.Fatalf("CreateItem failed: %v", err)
+		}
+		ids = append(ids, id)
+	}
+
+	post := func(path, idsValue string) *httptest.ResponseRecorder {
+		form := url.Values{}
+		form.Set("ids", idsValue)
+		req := httptest.NewRequest("POST", path, strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		return rec
+	}
+	path := fmt.Sprintf("/projects/%d/reorder", pID)
+
+	// C, A, B の順に並べ替え
+	rec := post(path, fmt.Sprintf("%d,%d,%d", ids[2], ids[0], ids[1]))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if trigger := rec.Header().Get("HX-Trigger"); !strings.Contains(trigger, "itemChanged") {
+		t.Errorf("expected HX-Trigger to contain 'itemChanged', got %q", trigger)
+	}
+	items, err := db.GetItems(h.DB, model.ItemFilter{View: "project", ProjectID: &pID})
+	if err != nil {
+		t.Fatalf("GetItems failed: %v", err)
+	}
+	var got []string
+	for _, it := range items {
+		got = append(got, it.Title)
+	}
+	if strings.Join(got, ",") != "C,A,B" {
+		t.Errorf("expected order C,A,B, got %v", got)
+	}
+
+	// 不正な入力は 400、存在しないプロジェクトは 404
+	if rec := post(path, "abc"); rec.Code != http.StatusBadRequest {
+		t.Errorf("non-numeric ids: expected 400, got %d", rec.Code)
+	}
+	if rec := post(path, fmt.Sprintf("%d,%d", ids[0], ids[0])); rec.Code != http.StatusBadRequest {
+		t.Errorf("duplicate ids: expected 400, got %d", rec.Code)
+	}
+	if rec := post(path, ""); rec.Code != http.StatusBadRequest {
+		t.Errorf("empty ids: expected 400, got %d", rec.Code)
+	}
+	if rec := post("/projects/99999/reorder", fmt.Sprintf("%d", ids[0])); rec.Code != http.StatusNotFound {
+		t.Errorf("unknown project: expected 404, got %d", rec.Code)
 	}
 }

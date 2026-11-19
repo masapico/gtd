@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -649,7 +650,70 @@ func UpdateProjectType(db *sql.DB, id int64, projectType string) error {
 	return err
 }
 
-// MoveItem は指定アイテムをプロジェクト内の並び順で上(up)または下(down)へ移動します
+// reorderGroup は並び替えの単位（画面上のセクション）を表すキーを返します。
+// 順次プロジェクトでは Next と Waiting が 1 つの「ステップ」列に統合されて表示されるため同じグループになります。
+func reorderGroup(status string, sequential bool) string {
+	if sequential && (status == "next" || status == "waiting") {
+		return "steps"
+	}
+	return status
+}
+
+type orderedItem struct {
+	id    int64
+	group string
+}
+
+// loadProjectOrder はプロジェクト内の全アイテムを表示順 (sort_order ASC, id ASC) で、並び替えグループ付きで返します
+func loadProjectOrder(tx *sql.Tx, projectID int64) ([]orderedItem, error) {
+	var projectType string
+	if err := tx.QueryRow("SELECT type FROM projects WHERE id = ?", projectID).Scan(&projectType); err != nil {
+		return nil, err
+	}
+	sequential := projectType == "sequential"
+
+	rows, err := tx.Query(`
+		SELECT id, status
+		FROM items
+		WHERE project_id = ?
+		ORDER BY sort_order ASC, id ASC
+	`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []orderedItem
+	for rows.Next() {
+		var it orderedItem
+		var status string
+		if err := rows.Scan(&it.id, &status); err != nil {
+			return nil, err
+		}
+		it.group = reorderGroup(status, sequential)
+		items = append(items, it)
+	}
+	return items, rows.Err()
+}
+
+// saveProjectOrder は与えられた順序で sort_order を 1..N に正規化して保存します
+func saveProjectOrder(tx *sql.Tx, items []orderedItem) error {
+	stmt, err := tx.Prepare("UPDATE items SET sort_order = ? WHERE id = ?")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	for i, it := range items {
+		if _, err := stmt.Exec(i+1, it.id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// MoveItem は指定アイテムを、同じセクション（並び替えグループ）内で上(up)または下(down)へ 1 つ移動します。
+// 間に別ステータスのアイテムがあっても飛ばして、画面上の隣と入れ替えます。完了済みアイテムは移動しません。
 func MoveItem(db *sql.DB, id int64, dir string) error {
 	if dir != "up" && dir != "down" {
 		return fmt.Errorf("invalid direction: %s", dir)
@@ -670,30 +734,14 @@ func MoveItem(db *sql.DB, id int64, dir string) error {
 		return fmt.Errorf("item does not belong to a project")
 	}
 
-	// プロジェクト内の全アイテムを sort_order ASC, id ASC で取得
-	rows, err := tx.Query(`
-		SELECT id 
-		FROM items 
-		WHERE project_id = ? 
-		ORDER BY sort_order ASC, id ASC
-	`, projectID.Int64)
+	items, err := loadProjectOrder(tx, projectID.Int64)
 	if err != nil {
 		return err
 	}
-	var itemIDs []int64
-	for rows.Next() {
-		var itID int64
-		if err := rows.Scan(&itID); err != nil {
-			rows.Close()
-			return err
-		}
-		itemIDs = append(itemIDs, itID)
-	}
-	rows.Close()
 
 	targetIdx := -1
-	for i, itID := range itemIDs {
-		if itID == id {
+	for i, it := range items {
+		if it.id == id {
 			targetIdx = i
 			break
 		}
@@ -701,31 +749,92 @@ func MoveItem(db *sql.DB, id int64, dir string) error {
 	if targetIdx == -1 {
 		return fmt.Errorf("item not found in project items")
 	}
+	group := items[targetIdx].group
+	if group == "done" {
+		return nil
+	}
 
+	step := -1
+	if dir == "down" {
+		step = 1
+	}
 	swapIdx := -1
-	if dir == "up" && targetIdx > 0 {
-		swapIdx = targetIdx - 1
-	} else if dir == "down" && targetIdx < len(itemIDs)-1 {
-		swapIdx = targetIdx + 1
+	for i := targetIdx + step; i >= 0 && i < len(items); i += step {
+		if items[i].group == group {
+			swapIdx = i
+			break
+		}
+	}
+	if swapIdx == -1 {
+		return nil // セクションの端
 	}
 
-	if swapIdx != -1 {
-		itemIDs[targetIdx], itemIDs[swapIdx] = itemIDs[swapIdx], itemIDs[targetIdx]
+	items[targetIdx], items[swapIdx] = items[swapIdx], items[targetIdx]
+	if err := saveProjectOrder(tx, items); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// ErrInvalidReorder は ReorderItems に渡された ID 列が不正な場合のエラーです
+var ErrInvalidReorder = errors.New("invalid reorder request")
+
+// ReorderItems はプロジェクト内の 1 セクション（同一の並び替えグループ）を orderedIDs の順に並べ替えます。
+// orderedIDs が占めていた位置（スロット）だけを埋め直すため、他セクションのアイテムの相対位置は変わりません。
+func ReorderItems(db *sql.DB, projectID int64, orderedIDs []int64) error {
+	if len(orderedIDs) == 0 {
+		return fmt.Errorf("%w: no items to reorder", ErrInvalidReorder)
 	}
 
-	// 1..N で全要素の sort_order を一括正規化更新
-	stmt, err := tx.Prepare("UPDATE items SET sort_order = ? WHERE id = ?")
+	tx, err := db.Begin()
 	if err != nil {
 		return err
 	}
-	defer stmt.Close()
+	defer tx.Rollback()
 
-	for i, itID := range itemIDs {
-		if _, err := stmt.Exec(i+1, itID); err != nil {
-			return err
+	items, err := loadProjectOrder(tx, projectID)
+	if err != nil {
+		return err
+	}
+
+	groupByID := make(map[int64]string, len(items))
+	for _, it := range items {
+		groupByID[it.id] = it.group
+	}
+
+	wanted := make(map[int64]bool, len(orderedIDs))
+	group := ""
+	for _, id := range orderedIDs {
+		g, ok := groupByID[id]
+		if !ok {
+			return fmt.Errorf("%w: item %d does not belong to project %d", ErrInvalidReorder, id, projectID)
+		}
+		if wanted[id] {
+			return fmt.Errorf("%w: duplicate item id %d", ErrInvalidReorder, id)
+		}
+		if group == "" {
+			group = g
+		} else if g != group {
+			return fmt.Errorf("%w: items must belong to the same section", ErrInvalidReorder)
+		}
+		wanted[id] = true
+	}
+	if group == "done" {
+		return fmt.Errorf("%w: completed items cannot be reordered", ErrInvalidReorder)
+	}
+
+	// スロット保持: 対象 ID が占めていた位置に、新しい順序で ID を割り当て直す
+	next := 0
+	for i, it := range items {
+		if wanted[it.id] {
+			items[i] = orderedItem{id: orderedIDs[next], group: group}
+			next++
 		}
 	}
 
+	if err := saveProjectOrder(tx, items); err != nil {
+		return err
+	}
 	return tx.Commit()
 }
 

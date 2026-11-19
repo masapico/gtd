@@ -174,6 +174,7 @@ func setupRouter(h *handler.Handler) *http.ServeMux {
 	mux.HandleFunc("PUT /projects/{id}", h.UpdateProject)
 	mux.HandleFunc("PATCH /projects/{id}/status", h.UpdateProjectStatus)
 	mux.HandleFunc("PATCH /projects/{id}/type", h.UpdateProjectType)
+	mux.HandleFunc("POST /projects/{id}/reorder", h.ReorderProjectItems)
 	mux.HandleFunc("DELETE /projects/{id}", h.DeleteProject)
 
 	// Contexts

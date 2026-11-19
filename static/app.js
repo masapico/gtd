@@ -226,6 +226,13 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
+  // Alt + ↑ / ↓: 選択中のカードをプロジェクト内（同じセクション内）で並び替え
+  if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+    if (isInputActive || isAnyModalOpen()) return;
+    if (moveSelectedCard(e.key === 'ArrowUp' ? 'up' : 'down')) e.preventDefault();
+    return;
+  }
+
   // 中央リストの単キー操作（修飾キー付き・入力中・モーダル表示中は無効）
   if (isInputActive || e.ctrlKey || e.metaKey || e.altKey || isAnyModalOpen()) return;
   if (handleListShortcut(e.key)) e.preventDefault();
@@ -336,6 +343,121 @@ function handleListShortcut(key) {
   return false;
 }
 
+// 2-3. プロジェクト内の並び替え（ドラッグ＆ドロップ / Alt+↑↓）
+// 並び替えは [data-reorder-project] を持つセクション内に限る（セクションをまたぐ移動はステータス変更で行う）
+let scrollSelectedAfterSwap = false;
+
+function reorderableCards(container) {
+  return [...container.children].filter(el => el.classList.contains('item-card') && el.querySelector('.drag-handle'));
+}
+
+function moveSelectedCard(dir) {
+  const card = document.querySelector('#main-content-pane [data-reorder-project] .item-card.selected');
+  if (!card || !card.querySelector('.drag-handle')) return false;
+  const id = cardItemId(card);
+  if (!id) return false;
+
+  // 応答を待たずに見た目を先に入れ替える（確定した並びは itemChanged の再描画で反映される）
+  const siblings = reorderableCards(card.parentElement);
+  const idx = siblings.indexOf(card);
+  const neighbor = siblings[dir === 'up' ? idx - 1 : idx + 1];
+  if (!neighbor) return true; // セクションの端
+  neighbor.insertAdjacentElement(dir === 'up' ? 'beforebegin' : 'afterend', card);
+  card.scrollIntoView({ block: 'nearest' });
+
+  selectedItemId = id;
+  scrollSelectedAfterSwap = true;
+  sendItemRequest('POST', `/items/${id}/move`, { dir }).catch(err => {
+    showToast(err.message, true);
+    htmx.trigger(document.body, 'itemChanged');
+  });
+  return true;
+}
+
+let dragState = null; // { card, container }
+
+function clearDropIndicators() {
+  document.querySelectorAll('.item-card.drop-before, .item-card.drop-after')
+    .forEach(el => el.classList.remove('drop-before', 'drop-after'));
+}
+
+// ハンドルを掴んだときだけカードをドラッグ可能にする（カードのクリックや文字選択を妨げないため）
+document.addEventListener('mousedown', (e) => {
+  const handle = e.target.closest?.('[data-reorder-project] .drag-handle');
+  if (!handle) return;
+  const card = handle.closest('.item-card');
+  if (card) card.draggable = true;
+});
+document.addEventListener('mouseup', () => {
+  if (dragState) return;
+  document.querySelectorAll('[data-reorder-project] .item-card[draggable="true"]').forEach(c => { c.draggable = false; });
+});
+
+document.addEventListener('dragstart', (e) => {
+  const card = e.target.closest?.('[data-reorder-project] .item-card');
+  if (!card || !card.draggable) return;
+  dragState = { card, container: card.parentElement };
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', cardItemId(card) || '');
+  requestAnimationFrame(() => card.classList.add('dragging'));
+});
+
+// ドロップ位置: ポインタ直下（なければ最も近い）カードの上半分なら前、下半分なら後ろ
+function dropTarget(container, clientY) {
+  const cards = reorderableCards(container).filter(c => c !== dragState.card);
+  if (cards.length === 0) return null;
+  for (const c of cards) {
+    const r = c.getBoundingClientRect();
+    if (clientY < r.top + r.height / 2) return { card: c, before: true };
+  }
+  return { card: cards[cards.length - 1], before: false };
+}
+
+document.addEventListener('dragover', (e) => {
+  if (!dragState) return;
+  const container = e.target.closest?.('[data-reorder-project]');
+  if (container !== dragState.container) {
+    clearDropIndicators();
+    return; // 別セクションにはドロップさせない
+  }
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const target = dropTarget(container, e.clientY);
+  clearDropIndicators();
+  if (target) target.card.classList.add(target.before ? 'drop-before' : 'drop-after');
+});
+
+document.addEventListener('drop', (e) => {
+  if (!dragState) return;
+  const container = e.target.closest?.('[data-reorder-project]');
+  if (container !== dragState.container) return;
+  e.preventDefault();
+
+  const { card } = dragState;
+  const target = dropTarget(container, e.clientY);
+  clearDropIndicators();
+  if (!target) return;
+
+  const before = reorderableCards(container).map(cardItemId).join(',');
+  target.card.insertAdjacentElement(target.before ? 'beforebegin' : 'afterend', card);
+  const ids = reorderableCards(container).map(cardItemId).filter(Boolean);
+  if (ids.join(',') === before) return; // 位置が変わっていない
+
+  const projectId = container.dataset.reorderProject;
+  sendItemRequest('POST', `/projects/${projectId}/reorder`, { ids: ids.join(',') }).catch(err => {
+    showToast(err.message, true);
+    htmx.trigger(document.body, 'itemChanged');
+  });
+});
+
+document.addEventListener('dragend', () => {
+  if (!dragState) return;
+  dragState.card.classList.remove('dragging');
+  dragState.card.draggable = false;
+  dragState = null;
+  clearDropIndicators();
+});
+
 // リスト再描画後も、選択していたアイテムのハイライトを復元する
 function restoreSelectedCard() {
   if (!selectedItemId) return;
@@ -343,6 +465,8 @@ function restoreSelectedCard() {
   const card = cards.find(c => cardItemId(c) === selectedItemId);
   if (card) {
     card.classList.add('selected');
+    if (scrollSelectedAfterSwap) card.scrollIntoView({ block: 'nearest' });
+    scrollSelectedAfterSwap = false;
     return;
   }
   // 選択していたカードが消えた: 直前のキー操作によるものなら隣のカードへ選択を移す

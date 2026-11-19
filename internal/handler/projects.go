@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"database/sql"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -151,6 +153,49 @@ func (h *Handler) UpdateProjectType(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.Trigger(w, "projectChanged", "itemChanged")
+	w.WriteHeader(http.StatusOK)
+}
+
+// ReorderProjectItems はプロジェクト内の 1 セクションを、ids（カンマ区切り）の順に並べ替えます（ドラッグ＆ドロップ用）
+func (h *Handler) ReorderProjectItems(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid project ID", http.StatusBadRequest)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	var ids []int64
+	for _, s := range strings.Split(r.FormValue("ids"), ",") {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		itemID, err := strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			http.Error(w, "Invalid item ID: "+s, http.StatusBadRequest)
+			return
+		}
+		ids = append(ids, itemID)
+	}
+
+	if err := db.ReorderItems(h.DB, id, ids); err != nil {
+		switch {
+		case errors.Is(err, db.ErrInvalidReorder):
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		case errors.Is(err, sql.ErrNoRows):
+			http.Error(w, "Project not found", http.StatusNotFound)
+		default:
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	h.Trigger(w, "itemChanged")
 	w.WriteHeader(http.StatusOK)
 }
 

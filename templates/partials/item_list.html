@@ -794,7 +794,8 @@
                   <span style="font-size: 0.75rem; color: #b78103; margin-left: 8px;">※未整理です。適したステータスへ仕分けてください</span>
                 {{end}}
               </div>
-              <div class="project-section-items">
+              {{$reorderable := and $.CurrentProject (ne $.CurrentProject.Status "done") (ne $sec.ID "done")}}
+              <div class="project-section-items"{{if $reorderable}} data-reorder-project="{{$.CurrentProject.ID}}"{{end}}>
                 {{if eq $sec.Count 0}}
                   <div class="project-section-empty">タスクはありません</div>
                 {{else}}
@@ -805,6 +806,15 @@
                          hx-swap="innerHTML"
                          onclick="openDetailPane('{{.ID}}'); document.querySelectorAll('.item-card').forEach(c => c.classList.remove('selected')); this.classList.add('selected');">
                       
+                      <!-- ドラッグハンドル（同一セクション内の並び替え） -->
+                      {{if and $reorderable (ne .Status "done")}}
+                        <span class="drag-handle" title="ドラッグで並び替え（Alt+↑/↓ でも移動）" aria-hidden="true" onclick="event.stopPropagation()">
+                          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                            <path d="M9 4.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm6 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zM9 10.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm6 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zM9 16.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm6 0a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z"/>
+                          </svg>
+                        </span>
+                      {{end}}
+
                       <!-- Step Number (順次実行プロジェクトの場合) -->
                       {{if .StepNo}}
                         <span class="step-no-badge {{if .IsBlocked}}blocked{{else}}current{{end}}" title="ステップ {{.StepNo}}{{if .IsBlocked}}（待機中）{{else}}（今実行可能）{{end}}">
@@ -890,30 +900,6 @@
 
                       <!-- カード右端のアクション群 -->
                       <div class="item-card-right-actions" onclick="event.stopPropagation()">
-                        <!-- 順序並び替えボタン (▲ / ▼) -->
-                        {{if ne .Status "done"}}
-                          <div class="item-order-controls">
-                            <button type="button" 
-                                    class="order-btn" 
-                                    hx-post="/items/{{.ID}}/move?dir=up" 
-                                    hx-swap="none" 
-                                    title="順序を上へ移動">
-                              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                                <path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/>
-                              </svg>
-                            </button>
-                            <button type="button" 
-                                    class="order-btn" 
-                                    hx-post="/items/{{.ID}}/move?dir=down" 
-                                    hx-swap="none" 
-                                    title="順序を下へ移動">
-                              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                                <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/>
-                              </svg>
-                            </button>
-                          </div>
-                        {{end}}
-
                         <!-- Inbox クイック仕分けボタン -->
                         {{if eq .Status "inbox"}}
                           <div class="inbox-triage-btns">

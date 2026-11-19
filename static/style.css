@@ -3542,39 +3542,62 @@ input[type="checkbox"]:focus-visible {
   flex-shrink: 0;
 }
 
-/* Order Controls (Up / Down) */
-.item-order-controls {
-  display: inline-flex;
-  flex-direction: column;
-  gap: 2px;
-  background-color: var(--md-sys-color-surface-container);
-  border: 1px solid var(--md-sys-color-outline-variant);
-  border-radius: var(--md-shape-sm);
-  padding: 2px;
+/* Drag & Drop Reordering (プロジェクト内・同一セクション) */
+[data-reorder-project] .item-card {
+  position: relative;
 }
 
-.order-btn {
+.drag-handle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 20px;
-  padding: 0;
-  background: transparent;
-  border: none;
+  flex-shrink: 0;
+  width: 20px;
+  height: 28px;
+  margin: 0 -6px 0 -8px;
   border-radius: 4px;
   color: var(--md-sys-color-on-surface-variant);
-  cursor: pointer;
-  transition: all 0.15s ease;
+  opacity: 0.35;
+  cursor: grab;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
 }
 
-.order-btn:hover {
-  background-color: var(--md-sys-color-primary-container);
-  color: var(--md-sys-color-on-primary-container);
+.item-card:hover .drag-handle,
+.item-card.selected .drag-handle {
+  opacity: 0.85;
 }
 
-.order-btn:active {
-  transform: scale(0.92);
+.drag-handle:hover {
+  opacity: 1;
+  background-color: var(--md-sys-color-surface-container-high);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.item-card.dragging {
+  opacity: 0.4;
+}
+
+.item-card.drop-before::before,
+.item-card.drop-after::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  height: 2px;
+  border-radius: 1px;
+  background-color: var(--md-sys-color-primary);
+  pointer-events: none;
+}
+
+.item-card.drop-before::before {
+  top: -5px;
+}
+
+.item-card.drop-after::after {
+  bottom: -5px;
 }
 
 /* Inbox Triage Buttons */
